@@ -18,10 +18,13 @@ pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
 
 qt_standard_project_setup()
 
-qt_add_executable(weeview
-    src/model/CoreTypes.h
-    src/main.cpp
+file(GLOB_RECURSE WEEVIEW_SOURCES CONFIGURE_DEPENDS
+    src/*.cpp
+    src/*.h
+    src/*.hpp
 )
+
+qt_add_executable(weeview ${WEEVIEW_SOURCES})
 
 target_link_libraries(weeview
     PRIVATE
