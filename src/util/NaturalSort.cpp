@@ -24,9 +24,7 @@ bool lessThan(const QString &left, const QString &right) {
 void sort(QStringList &values) {
     auto collator = makeCollator();
     std::sort(values.begin(), values.end(),
-              [&collator](const QString &left, const QString &right) {
-                  return collator.compare(left, right) < 0;
-              });
+              [&collator](const QString &left, const QString &right) { return collator.compare(left, right) < 0; });
 }
 
 QStringList sorted(QStringList values) {

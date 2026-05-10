@@ -20,8 +20,8 @@ constexpr auto schemaVersionKey = "schemaVersion";
 constexpr auto entriesKey = "entries";
 
 QString defaultHistoryPath() {
-    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
-           QDir::separator() + QStringLiteral("history.json");
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QDir::separator() +
+           QStringLiteral("history.json");
 }
 
 bool ensureParentDirectoryExists(const QString &filePath) {
@@ -47,8 +47,7 @@ QVector<HistoryEntry> HistoryStore::load() const {
         return {};
     }
 
-    const auto entriesValue =
-        document.object().value(QLatin1String(entriesKey));
+    const auto entriesValue = document.object().value(QLatin1String(entriesKey));
     if (!entriesValue.isArray()) {
         return {};
     }

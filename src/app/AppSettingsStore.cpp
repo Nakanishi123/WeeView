@@ -16,8 +16,8 @@ namespace weeview {
 namespace {
 
 QString defaultSettingsPath() {
-    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
-           QDir::separator() + QStringLiteral("settings.json");
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QDir::separator() +
+           QStringLiteral("settings.json");
 }
 
 bool ensureParentDirectoryExists(const QString &filePath) {
@@ -27,11 +27,9 @@ bool ensureParentDirectoryExists(const QString &filePath) {
 
 } // namespace
 
-AppSettingsStore::AppSettingsStore()
-    : AppSettingsStore(defaultSettingsPath()) {}
+AppSettingsStore::AppSettingsStore() : AppSettingsStore(defaultSettingsPath()) {}
 
-AppSettingsStore::AppSettingsStore(QString filePath)
-    : filePath_(std::move(filePath)) {}
+AppSettingsStore::AppSettingsStore(QString filePath) : filePath_(std::move(filePath)) {}
 
 AppSettings AppSettingsStore::load() const {
     QFile file(filePath_);

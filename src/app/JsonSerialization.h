@@ -18,8 +18,7 @@ QString toJsonString(ReadingDirection readingDirection);
 QString toJsonString(BookType bookType);
 
 ViewMode viewModeFromJsonString(const QString &value, ViewMode fallback);
-ReadingDirection readingDirectionFromJsonString(const QString &value,
-                                                ReadingDirection fallback);
+ReadingDirection readingDirectionFromJsonString(const QString &value, ReadingDirection fallback);
 BookType bookTypeFromJsonString(const QString &value, BookType fallback);
 
 } // namespace weeview::json
