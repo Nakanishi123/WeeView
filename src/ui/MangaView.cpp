@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QRectF>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <utility>
@@ -209,17 +210,34 @@ void MangaView::keyPressEvent(QKeyEvent *event) {
 }
 
 void MangaView::mousePressEvent(QMouseEvent *event) {
-    if (event->button() != Qt::LeftButton) {
+    if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton) {
         QWidget::mousePressEvent(event);
         return;
     }
 
     setFocus(Qt::MouseFocusReason);
 
-    if (event->position().x() < width() / 2.0) {
+    if (event->button() == Qt::LeftButton) {
         goToDirectionAwareLeft();
     } else {
         goToDirectionAwareRight();
+    }
+    event->accept();
+}
+
+void MangaView::wheelEvent(QWheelEvent *event) {
+    const auto verticalDelta = event->angleDelta().y() != 0 ? event->angleDelta().y() : event->pixelDelta().y();
+    if (verticalDelta == 0) {
+        QWidget::wheelEvent(event);
+        return;
+    }
+
+    setFocus(Qt::MouseFocusReason);
+
+    if (verticalDelta < 0) {
+        goToNextPage();
+    } else {
+        goToPreviousPage();
     }
     event->accept();
 }

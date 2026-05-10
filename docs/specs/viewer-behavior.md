@@ -64,17 +64,22 @@ Direction-independent keys:
 
 ## Mouse navigation
 
-Left-clicking the image area moves toward the clicked side.
+Mouse clicks navigate by button, regardless of click position.
 
 Right-to-left:
 
-- Click left half: next page.
-- Click right half: previous page.
+- Left click: next page.
+- Right click: previous page.
 
 Left-to-right:
 
-- Click right half: next page.
-- Click left half: previous page.
+- Left click: previous page.
+- Right click: next page.
+
+Mouse wheel navigation is independent of reading direction:
+
+- Wheel down: next page.
+- Wheel up: previous page.
 
 Mouse wheel zoom is not part of MVP.
 

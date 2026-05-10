@@ -46,6 +46,7 @@ class MangaView final : public QWidget {
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
   private:
     [[nodiscard]] QVector<int> displayPageIndices() const;

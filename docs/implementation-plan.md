@@ -135,13 +135,15 @@ Tasks:
 - Implement next/previous page.
 - Implement Home/End.
 - Implement reading-direction-aware Left/Right keys.
-- Implement reading-direction-aware left-click zones.
+- Implement mouse button navigation.
+- Implement wheel up/down navigation.
 
 Acceptance:
 
-- Right-to-left: left side/Left Arrow means next page.
-- Left-to-right: right side/Right Arrow means next page.
+- Right-to-left: left click/Left Arrow means next page.
+- Left-to-right: right click/Right Arrow means next page.
 - Space and PageDown always mean next page.
+- Wheel down always means next page.
 
 ## Step 8: Header and footer overlays
 
