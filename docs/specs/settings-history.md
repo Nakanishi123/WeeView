@@ -1,0 +1,77 @@
+# Settings and History Specification
+
+## Storage format
+
+Settings and history must be stored as JSON files.
+
+Use safe writes for JSON saves. Prefer atomic save behavior rather than directly overwriting files.
+
+Recommended storage location:
+
+- Qt app config location.
+
+## Settings
+
+Recommended file name:
+
+- `settings.json`
+
+Required settings:
+
+- Schema version.
+- Home folder.
+- Default reading direction.
+- Default view mode.
+- Overlay edge trigger size.
+- Overlay hide delay.
+
+If no home folder is configured, use the user's home directory.
+
+Default values:
+
+- Reading direction: right-to-left.
+- View mode: single page.
+- Overlay edge trigger size: 24 px.
+- Overlay hide delay: 800 ms.
+
+## History
+
+Recommended file name:
+
+- `history.json`
+
+Bookmarks are not part of MVP.
+
+History must store recent books and reading progress.
+
+Required history fields per book:
+
+- Book path.
+- Book type: folder or zip.
+- Display name.
+- Last page index.
+- Page count.
+- View mode.
+- Reading direction.
+- Last opened timestamp.
+
+Do not persist `spreadAnchorPage`.
+
+`lastPageIndex` has the same meaning as `currentPageIndex`: the logical first page index of the currently displayed group.
+
+## Reading state
+
+The sidebar reading state is derived from history.
+
+Unread:
+
+- No history entry exists.
+
+Reading:
+
+- `lastPageIndex > 0`.
+- `lastPageIndex < pageCount - 1`.
+
+Completed:
+
+- `lastPageIndex >= pageCount - 1`.

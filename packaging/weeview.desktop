@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=WeeView
+Comment=A lightweight manga viewer
+Exec=weeview
+Icon=weeview
+Categories=Graphics;Viewer;
+Terminal=false

@@ -1,0 +1,25 @@
+[tools]
+cmake = "4.3.2"
+ninja = "1.13.2"
+
+[tasks.configure]
+description = "Configure CMake"
+run = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
+
+[tasks.build]
+description = "Build WeeView"
+depends = ["configure"]
+run = "cmake --build build"
+
+[tasks.package-deb]
+description = "Build DEB package"
+depends = ["build"]
+run = "cmake --build build --target package"
+
+[tasks.clean]
+description = "Remove build directory"
+run = "rm -rf build"
+
+[tasks.format]
+description = "Format code"
+run = "clang-format -i $(find src -type f \\( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' -o -name '*.hpp' -o -name '*.h' \\))"
