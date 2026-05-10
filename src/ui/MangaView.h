@@ -4,6 +4,7 @@
 
 #include <QImage>
 #include <QRectF>
+#include <QVector>
 #include <QWidget>
 
 namespace weeview {
@@ -15,7 +16,10 @@ class MangaView final : public QWidget {
     explicit MangaView(QWidget *parent = nullptr);
 
     void setImage(QImage image);
+    void setPageImage(int pageIndex, QImage image);
+    void setPageImages(QVector<QImage> images);
     void clearImage();
+    void clearPageImages();
     void setPageCount(int pageCount);
     void setCurrentPageIndex(int pageIndex);
     void setViewMode(ViewMode viewMode);
@@ -23,6 +27,7 @@ class MangaView final : public QWidget {
     void setViewerState(const ViewerState &state);
 
     [[nodiscard]] const QImage &image() const;
+    [[nodiscard]] const QVector<QImage> &pageImages() const;
     [[nodiscard]] int pageCount() const;
     [[nodiscard]] int currentPageIndex() const;
     [[nodiscard]] ViewMode viewMode() const;
@@ -41,9 +46,12 @@ class MangaView final : public QWidget {
     void mousePressEvent(QMouseEvent *event) override;
 
   private:
-    [[nodiscard]] QRectF fittedImageRect() const;
+    [[nodiscard]] QVector<int> displayPageIndices() const;
+    [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image) const;
     [[nodiscard]] int clampedPageIndex(int pageIndex) const;
     [[nodiscard]] bool hasPages() const;
+    [[nodiscard]] bool hasImageForPage(int pageIndex) const;
+    [[nodiscard]] bool isLandscapePage(int pageIndex) const;
     void goToFirstPage();
     void goToLastPage();
     void goToNextPage();
@@ -52,6 +60,7 @@ class MangaView final : public QWidget {
     void goToDirectionAwareRight();
 
     QImage image_;
+    QVector<QImage> pageImages_;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;
     ViewMode viewMode_ = ViewMode::SinglePage;
