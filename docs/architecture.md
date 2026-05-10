@@ -47,10 +47,10 @@ Keep these types small and easy to serialize where applicable.
 - `ReadingDirection`: right-to-left or left-to-right.
 - `BookType`: folder or zip.
 - `PageInfo`: image name, display path, image size, and landscape flag.
-- `ViewerState`: current page index, view mode, and reading direction.
+- `ViewerState`: current page index, current display group end, view mode, reading direction, and spread group direction.
 - `HistoryEntry`: persisted reading progress for a book.
 
-Do not add persistent `spreadAnchorPage`. Use `currentPageIndex` for spread anchoring.
+Do not add persistent `spreadAnchorPage` or spread anchor parity. Use `currentPageIndex` as the logical first page index of the current directional local group.
 
 ## Book model
 

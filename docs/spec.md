@@ -81,6 +81,7 @@ Excluded:
 - Page indices are zero-based internally.
 - `currentPageIndex` means the logical first page of the current display group.
 - `lastPageIndex` in history has the same meaning as `currentPageIndex`.
+- History also stores the current display group's logical last page and spread group direction so spread groups restore exactly.
 - Do not persist `spreadAnchorPage`.
 - Right-to-left is the default reading direction.
 - Single-page mode is the default view mode.

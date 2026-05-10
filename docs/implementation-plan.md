@@ -244,7 +244,7 @@ Goal:
 Tasks:
 
 - Update history on book close/change/page change.
-- Save `lastPageIndex`, `viewMode`, `readingDirection`, `pageCount`, and timestamp.
+- Save `lastPageIndex`, `lastDisplayLastPageIndex`, `spreadGroupDirection`, `viewMode`, `readingDirection`, `pageCount`, and timestamp.
 - Derive sidebar reading state.
 
 Acceptance:

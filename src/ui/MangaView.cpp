@@ -28,6 +28,7 @@ void MangaView::setImage(QImage image) {
     }
     pageImages_[currentPageIndex_] = image_;
     setPageCount(std::max(pageCount_, currentPageIndex_ + 1));
+    refreshCurrentDisplayGroup();
     update();
 }
 
@@ -43,6 +44,7 @@ void MangaView::setPageImage(int pageIndex, QImage image) {
     pageImages_[pageIndex] = std::move(image);
     image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
     setPageCount(std::max(pageCount_, pageIndex + 1));
+    refreshCurrentDisplayGroup();
     update();
 }
 
@@ -50,6 +52,7 @@ void MangaView::setPageImages(QVector<QImage> images) {
     pageImages_ = std::move(images);
     setPageCount(pageImages_.size());
     image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
+    refreshCurrentDisplayGroup();
     update();
 }
 
@@ -64,6 +67,7 @@ void MangaView::clearImage() {
 void MangaView::clearPageImages() {
     image_ = {};
     pageImages_.clear();
+    currentDisplayPageIndices_.clear();
     setPageCount(0);
     update();
 }
@@ -76,6 +80,7 @@ void MangaView::retainPageImages(const QSet<int> &pageIndices) {
     }
 
     image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
+    refreshCurrentDisplayGroup();
     update();
 }
 
@@ -91,15 +96,44 @@ void MangaView::setPageCount(int pageCount) {
 }
 
 void MangaView::setCurrentPageIndex(int pageIndex) {
-    const auto nextPageIndex = clampedPageIndex(pageIndex);
-    if (currentPageIndex_ == nextPageIndex) {
+    setCurrentPageIndexFromGroup(forwardSpreadGroup(pageIndex), pageIndex, SpreadGroupDirection::Forward);
+}
+
+void MangaView::setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallbackPageIndex,
+                                             SpreadGroupDirection direction, int displayLastFallbackPageIndex) {
+    const auto nextPageIndex = pageIndices.isEmpty() ? clampedPageIndex(fallbackPageIndex) : pageIndices.first();
+    const auto pageIndexChanged = currentPageIndex_ != nextPageIndex;
+    const auto displayGroupChanged = currentDisplayPageIndices_ != pageIndices;
+    const auto fallbackDisplayLastPageIndex =
+        displayLastFallbackPageIndex >= 0 ? displayLastFallbackPageIndex : fallbackPageIndex;
+
+    spreadGroupDirection_ = direction;
+    currentDisplayLastPageIndex_ =
+        pageIndices.isEmpty() ? clampedPageIndex(fallbackDisplayLastPageIndex) : pageIndices.last();
+    currentDisplayPageIndices_ = std::move(pageIndices);
+    currentPageIndex_ = nextPageIndex;
+    image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
+
+    if (pageIndexChanged) {
+        emit currentPageIndexChanged(currentPageIndex_);
+    }
+
+    if (pageIndexChanged || displayGroupChanged) {
+        update();
+    }
+}
+
+void MangaView::refreshCurrentDisplayGroup() {
+    if (viewMode_ == ViewMode::SinglePage) {
+        const auto pageIndices = hasImageForPage(currentPageIndex_) ? QVector<int>{currentPageIndex_} : QVector<int>{};
+        setCurrentPageIndexFromGroup(pageIndices, currentPageIndex_, spreadGroupDirection_);
         return;
     }
 
-    currentPageIndex_ = nextPageIndex;
-    image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
-    emit currentPageIndexChanged(currentPageIndex_);
-    update();
+    const auto pageIndices = spreadGroupDirection_ == SpreadGroupDirection::Forward
+                                 ? forwardSpreadGroup(currentPageIndex_)
+                                 : backwardSpreadGroup(currentDisplayLastPageIndex_);
+    setCurrentPageIndexFromGroup(pageIndices, currentPageIndex_, spreadGroupDirection_, currentDisplayLastPageIndex_);
 }
 
 void MangaView::setViewMode(ViewMode viewMode) {
@@ -108,6 +142,7 @@ void MangaView::setViewMode(ViewMode viewMode) {
     }
 
     viewMode_ = viewMode;
+    refreshCurrentDisplayGroup();
     emit viewModeChanged(viewMode_);
     update();
 }
@@ -124,7 +159,13 @@ void MangaView::setReadingDirection(ReadingDirection readingDirection) {
 void MangaView::setViewerState(const ViewerState &state) {
     setViewMode(state.viewMode);
     setReadingDirection(state.readingDirection);
-    setCurrentPageIndex(state.currentPageIndex);
+    spreadGroupDirection_ = state.spreadGroupDirection;
+    currentDisplayLastPageIndex_ = state.currentDisplayLastPageIndex;
+    refreshCurrentDisplayGroup();
+    setCurrentPageIndexFromGroup(state.spreadGroupDirection == SpreadGroupDirection::Forward
+                                     ? forwardSpreadGroup(state.currentPageIndex)
+                                     : backwardSpreadGroup(state.currentDisplayLastPageIndex),
+                                 state.currentPageIndex, state.spreadGroupDirection, state.currentDisplayLastPageIndex);
 }
 
 const QImage &MangaView::image() const { return image_; }
@@ -141,9 +182,7 @@ ReadingDirection MangaView::readingDirection() const { return readingDirection_;
 
 ViewerState MangaView::viewerState() const {
     return {
-        currentPageIndex_,
-        viewMode_,
-        readingDirection_,
+        currentPageIndex_, currentDisplayLastPageIndex_, viewMode_, readingDirection_, spreadGroupDirection_,
     };
 }
 
@@ -243,21 +282,50 @@ void MangaView::wheelEvent(QWheelEvent *event) {
     event->accept();
 }
 
-QVector<int> MangaView::displayPageIndices() const {
-    if (!hasPages() || !hasImageForPage(currentPageIndex_)) {
+QVector<int> MangaView::displayPageIndices() const { return currentDisplayPageIndices_; }
+
+QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
+    if (!hasPages()) {
         return {};
     }
 
-    if (viewMode_ == ViewMode::SinglePage || isLandscapePage(currentPageIndex_)) {
-        return {currentPageIndex_};
+    const auto firstPageIndex = clampedPageIndex(pageIndex);
+    if (!hasImageForPage(firstPageIndex)) {
+        return {};
     }
 
-    const auto nextPageIndex = currentPageIndex_ + 1;
+    if (viewMode_ == ViewMode::SinglePage || isLandscapePage(firstPageIndex)) {
+        return {firstPageIndex};
+    }
+
+    const auto nextPageIndex = firstPageIndex + 1;
     if (nextPageIndex >= pageCount_ || !hasImageForPage(nextPageIndex) || isLandscapePage(nextPageIndex)) {
-        return {currentPageIndex_};
+        return {firstPageIndex};
     }
 
-    return {currentPageIndex_, nextPageIndex};
+    return {firstPageIndex, nextPageIndex};
+}
+
+QVector<int> MangaView::backwardSpreadGroup(int pageIndex) const {
+    if (!hasPages()) {
+        return {};
+    }
+
+    const auto lastPageIndex = clampedPageIndex(pageIndex);
+    if (!hasImageForPage(lastPageIndex)) {
+        return {};
+    }
+
+    if (viewMode_ == ViewMode::SinglePage || isLandscapePage(lastPageIndex)) {
+        return {lastPageIndex};
+    }
+
+    const auto previousPageIndex = lastPageIndex - 1;
+    if (previousPageIndex < 0 || !hasImageForPage(previousPageIndex) || isLandscapePage(previousPageIndex)) {
+        return {lastPageIndex};
+    }
+
+    return {previousPageIndex, lastPageIndex};
 }
 
 QRectF MangaView::fittedImageRect(const QRectF &availableRect, const QImage &image,
@@ -309,13 +377,34 @@ void MangaView::goToFirstPage() { setCurrentPageIndex(0); }
 void MangaView::goToLastPage() { setCurrentPageIndex(pageCount_ - 1); }
 
 void MangaView::goToNextPage() {
-    const auto step = viewMode_ == ViewMode::Spread ? static_cast<int>(displayPageIndices().size()) : 1;
-    setCurrentPageIndex(currentPageIndex_ + std::max(1, step));
+    if (viewMode_ != ViewMode::Spread) {
+        setCurrentPageIndex(currentPageIndex_ + 1);
+        return;
+    }
+
+    const auto pageIndices = displayPageIndices();
+    const auto nextPageIndex = pageIndices.isEmpty() ? currentPageIndex_ + 1 : pageIndices.last() + 1;
+    if (nextPageIndex >= pageCount_) {
+        return;
+    }
+
+    setCurrentPageIndexFromGroup(forwardSpreadGroup(nextPageIndex), nextPageIndex, SpreadGroupDirection::Forward);
 }
 
 void MangaView::goToPreviousPage() {
-    const auto step = viewMode_ == ViewMode::Spread ? static_cast<int>(displayPageIndices().size()) : 1;
-    setCurrentPageIndex(currentPageIndex_ - std::max(1, step));
+    if (viewMode_ != ViewMode::Spread) {
+        setCurrentPageIndex(currentPageIndex_ - 1);
+        return;
+    }
+
+    const auto pageIndices = displayPageIndices();
+    const auto previousPageIndex = (pageIndices.isEmpty() ? currentPageIndex_ : pageIndices.first()) - 1;
+    if (previousPageIndex < 0) {
+        return;
+    }
+
+    setCurrentPageIndexFromGroup(backwardSpreadGroup(previousPageIndex), previousPageIndex,
+                                 SpreadGroupDirection::Backward);
 }
 
 void MangaView::goToDirectionAwareLeft() {

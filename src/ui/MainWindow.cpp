@@ -68,13 +68,16 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
     currentBook_ = std::move(book);
 
     overlayContainer_->sidebar()->setCurrentArchivePath({});
+    ViewerState viewerState;
+    viewerState.currentPageIndex = requestedPageIndex;
+    viewerState.currentDisplayLastPageIndex = requestedPageIndex;
     if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
-        loadingBook_ = true;
-        overlayContainer_->viewer()->setViewerState({entry->lastPageIndex, entry->viewMode, entry->readingDirection});
-        loadingBook_ = false;
-        requestedPageIndex = entry->lastPageIndex;
+        viewerState = {
+            entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,
+            entry->readingDirection, entry->spreadGroupDirection,
+        };
     }
-    displayBook(requestedPageIndex);
+    displayBook(viewerState);
 }
 
 void MainWindow::openImageFile(const QString &filePath) {
@@ -85,7 +88,14 @@ void MainWindow::openImageFile(const QString &filePath) {
     currentBook_ = std::move(book);
 
     overlayContainer_->sidebar()->setCurrentArchivePath({});
-    displayBook(pageIndexForPath(fileInfo.absoluteFilePath()));
+    const auto requestedPageIndex = pageIndexForPath(fileInfo.absoluteFilePath());
+    displayBook({
+        requestedPageIndex,
+        requestedPageIndex,
+        overlayContainer_->viewer()->viewMode(),
+        overlayContainer_->viewer()->readingDirection(),
+        SpreadGroupDirection::Forward,
+    });
 }
 
 void MainWindow::openArchiveBook(const QString &archivePath) {
@@ -98,17 +108,17 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
     overlayContainer_->sidebar()->setCurrentFolder(archiveInfo.dir().absolutePath());
     overlayContainer_->sidebar()->setCurrentArchivePath(archiveInfo.absoluteFilePath());
 
-    int restoredPageIndex = 0;
+    ViewerState viewerState;
     if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
-        loadingBook_ = true;
-        overlayContainer_->viewer()->setViewerState({entry->lastPageIndex, entry->viewMode, entry->readingDirection});
-        loadingBook_ = false;
-        restoredPageIndex = entry->lastPageIndex;
+        viewerState = {
+            entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,
+            entry->readingDirection, entry->spreadGroupDirection,
+        };
     }
-    displayBook(restoredPageIndex);
+    displayBook(viewerState);
 }
 
-void MainWindow::displayBook(int currentPageIndex) {
+void MainWindow::displayBook(const ViewerState &viewerState) {
     auto *viewer = overlayContainer_->viewer();
     auto *header = overlayContainer_->headerBar();
 
@@ -122,7 +132,7 @@ void MainWindow::displayBook(int currentPageIndex) {
     imageCache_.clear();
     viewer->clearPageImages();
     viewer->setPageCount(currentBook_->pageCount());
-    viewer->setCurrentPageIndex(currentPageIndex);
+    viewer->setViewerState(viewerState);
 
     header->setBookPath(currentBook_->sourcePath());
     refreshCachedImages();
@@ -202,26 +212,31 @@ void MainWindow::saveCurrentHistory() {
     }
 
     auto *viewer = overlayContainer_->viewer();
+    const auto viewerState = viewer->viewerState();
     auto *entry = currentHistoryEntry();
     if (entry == nullptr) {
         historyEntries_.append({
             currentBook_->sourcePath(),
             currentBook_->type(),
             currentBook_->displayName(),
-            viewer->currentPageIndex(),
+            viewerState.currentPageIndex,
+            viewerState.currentDisplayLastPageIndex,
             currentBook_->pageCount(),
-            viewer->viewMode(),
-            viewer->readingDirection(),
+            viewerState.viewMode,
+            viewerState.readingDirection,
+            viewerState.spreadGroupDirection,
             QDateTime::currentDateTimeUtc(),
         });
     } else {
         entry->bookPath = currentBook_->sourcePath();
         entry->bookType = currentBook_->type();
         entry->displayName = currentBook_->displayName();
-        entry->lastPageIndex = viewer->currentPageIndex();
+        entry->lastPageIndex = viewerState.currentPageIndex;
+        entry->lastDisplayLastPageIndex = viewerState.currentDisplayLastPageIndex;
         entry->pageCount = currentBook_->pageCount();
-        entry->viewMode = viewer->viewMode();
-        entry->readingDirection = viewer->readingDirection();
+        entry->viewMode = viewerState.viewMode;
+        entry->readingDirection = viewerState.readingDirection;
+        entry->spreadGroupDirection = viewerState.spreadGroupDirection;
         entry->lastOpenedAt = QDateTime::currentDateTimeUtc();
     }
 

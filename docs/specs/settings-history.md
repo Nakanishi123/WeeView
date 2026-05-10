@@ -49,15 +49,19 @@ Required history fields per book:
 - Book path.
 - Book type: folder or zip.
 - Display name.
-- Last page index.
+- Last page index: logical first page index of the displayed group.
+- Last display last page index: logical last page index of the displayed group.
 - Page count.
 - View mode.
 - Reading direction.
+- Spread group direction: forward or backward.
 - Last opened timestamp.
 
 Do not persist `spreadAnchorPage`.
 
 `lastPageIndex` has the same meaning as `currentPageIndex`: the logical first page index of the currently displayed group.
+
+`lastDisplayLastPageIndex` and `spreadGroupDirection` are required to restore directional local spread groups. For example, `[1]` and `[1, 2]` both have `lastPageIndex` 0, so `lastPageIndex` alone is not enough to restore the display group.
 
 ## Reading state
 

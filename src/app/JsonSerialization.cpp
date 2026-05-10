@@ -17,9 +17,11 @@ constexpr auto bookPathKey = "bookPath";
 constexpr auto bookTypeKey = "bookType";
 constexpr auto displayNameKey = "displayName";
 constexpr auto lastPageIndexKey = "lastPageIndex";
+constexpr auto lastDisplayLastPageIndexKey = "lastDisplayLastPageIndex";
 constexpr auto pageCountKey = "pageCount";
 constexpr auto viewModeKey = "viewMode";
 constexpr auto readingDirectionKey = "readingDirection";
+constexpr auto spreadGroupDirectionKey = "spreadGroupDirection";
 constexpr auto lastOpenedAtKey = "lastOpenedAt";
 
 QString stringValue(const QJsonObject &object, const char *key, const QString &fallback) {
@@ -68,9 +70,11 @@ QJsonObject toJson(const HistoryEntry &entry) {
         {QLatin1String(bookTypeKey), toJsonString(entry.bookType)},
         {QLatin1String(displayNameKey), entry.displayName},
         {QLatin1String(lastPageIndexKey), entry.lastPageIndex},
+        {QLatin1String(lastDisplayLastPageIndexKey), entry.lastDisplayLastPageIndex},
         {QLatin1String(pageCountKey), entry.pageCount},
         {QLatin1String(viewModeKey), toJsonString(entry.viewMode)},
         {QLatin1String(readingDirectionKey), toJsonString(entry.readingDirection)},
+        {QLatin1String(spreadGroupDirectionKey), toJsonString(entry.spreadGroupDirection)},
         {QLatin1String(lastOpenedAtKey), entry.lastOpenedAt.toUTC().toString(Qt::ISODateWithMs)},
     };
 }
@@ -82,12 +86,19 @@ HistoryEntry historyEntryFromJson(const QJsonObject &object) {
         bookTypeFromJsonString(stringValue(object, bookTypeKey, toJsonString(entry.bookType)), entry.bookType);
     entry.displayName = stringValue(object, displayNameKey, entry.displayName);
     entry.lastPageIndex = intValue(object, lastPageIndexKey, entry.lastPageIndex);
+    entry.lastDisplayLastPageIndex = intValue(object, lastDisplayLastPageIndexKey, entry.lastDisplayLastPageIndex);
     entry.pageCount = intValue(object, pageCountKey, entry.pageCount);
     entry.viewMode =
         viewModeFromJsonString(stringValue(object, viewModeKey, toJsonString(entry.viewMode)), entry.viewMode);
     entry.readingDirection = readingDirectionFromJsonString(
         stringValue(object, readingDirectionKey, toJsonString(entry.readingDirection)), entry.readingDirection);
+    entry.spreadGroupDirection = spreadGroupDirectionFromJsonString(
+        stringValue(object, spreadGroupDirectionKey, toJsonString(entry.spreadGroupDirection)),
+        entry.spreadGroupDirection);
     entry.lastOpenedAt = QDateTime::fromString(stringValue(object, lastOpenedAtKey, {}), Qt::ISODateWithMs);
+    if (!object.contains(QLatin1String(lastDisplayLastPageIndexKey))) {
+        entry.lastDisplayLastPageIndex = entry.lastPageIndex;
+    }
     return entry;
 }
 
@@ -121,6 +132,16 @@ QString toJsonString(BookType bookType) {
     return QStringLiteral("folder");
 }
 
+QString toJsonString(SpreadGroupDirection spreadGroupDirection) {
+    switch (spreadGroupDirection) {
+    case SpreadGroupDirection::Forward:
+        return QStringLiteral("forward");
+    case SpreadGroupDirection::Backward:
+        return QStringLiteral("backward");
+    }
+    return QStringLiteral("forward");
+}
+
 ViewMode viewModeFromJsonString(const QString &value, ViewMode fallback) {
     if (value == QLatin1String("singlePage")) {
         return ViewMode::SinglePage;
@@ -147,6 +168,16 @@ BookType bookTypeFromJsonString(const QString &value, BookType fallback) {
     }
     if (value == QLatin1String("zip")) {
         return BookType::Zip;
+    }
+    return fallback;
+}
+
+SpreadGroupDirection spreadGroupDirectionFromJsonString(const QString &value, SpreadGroupDirection fallback) {
+    if (value == QLatin1String("forward")) {
+        return SpreadGroupDirection::Forward;
+    }
+    if (value == QLatin1String("backward")) {
+        return SpreadGroupDirection::Backward;
     }
     return fallback;
 }

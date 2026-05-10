@@ -61,7 +61,7 @@ Use natural sorting everywhere page/file order is visible.
 
 Do not persist `spreadAnchorPage`.
 
-Persist only `lastPageIndex`, which is the logical first page index of the displayed group.
+Persist `lastPageIndex`, `lastDisplayLastPageIndex`, and `spreadGroupDirection` so directional local spread groups can be restored exactly.
 
 ### Zoom
 
@@ -89,11 +89,11 @@ Do not implement:
 
 Landscape pages are displayed as single pages.
 
-Pairing around landscape pages may shift when navigating backward or forward because MVP follows NeeView-compatible anchor behavior.
+Pairing around landscape pages may shift when navigating backward or forward.
 
-This is accepted MVP behavior.
+This is accepted behavior because spread mode uses directional local grouping. The app recalculates the previous group from the page immediately before the current group and does not remember the previous forward path.
 
-A future alternative is fixed `DisplayGroup` generation.
+Do not replace this with fixed pair generation or spread anchor parity.
 
 ### ZIP filename encoding
 

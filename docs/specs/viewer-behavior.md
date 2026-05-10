@@ -11,7 +11,7 @@ Landscape pages are displayed as single pages in spread mode.
 `currentPageIndex` is zero-based and means the logical first page index of the current display group.
 
 - In single-page mode, it is the displayed page.
-- In spread mode, it is the lower page index of the preferred spread pair.
+- In spread mode, it is the logical first page index of the current directional local group.
 - If the display group is a single page because of an edge case or landscape page, it is that page.
 
 `lastPageIndex` in history uses the same definition.
@@ -99,43 +99,101 @@ Behavior:
 
 Spread mode displays one or two pages.
 
-Spread mode uses a NeeView-style anchor behavior represented by `currentPageIndex`.
+Spread mode uses directional local grouping.
+
+Do not use fixed pairs like `[1]`, `[2, 3]`, `[4, 5]`.
+
+Do not use spread anchor parity.
+
+A display group is either:
+
+- A single page: `[N]`.
+- A spread: `[N, N + 1]`.
+
+Landscape pages are single-page groups.
 
 When switching from single-page mode to spread mode:
 
-- Keep `currentPageIndex` unchanged.
+- Keep `currentPageIndex` unchanged as `N`.
+- Create a forward group starting at `N`.
 - Switch view mode to spread.
 
 Examples use 1-based page numbers:
 
 - Enabling spread on page 1 displays `[1, 2]`.
 - Enabling spread on page 2 displays `[2, 3]`.
-- Enabling spread on page 3 displays `[3, 4]`.
+- Enabling spread on page 3 when page 4 is landscape displays `[3]`.
+- Enabling spread on page 4 when page 4 is landscape displays `[4]`.
 
-For a logical current page `N`, the preferred spread group is `[N, N + 1]`.
+Forward group from `N`:
 
-If `N + 1` does not exist, display `[N]`.
+- If `N` is landscape, display `[N]`.
+- Else if `N + 1` does not exist, display `[N]`.
+- Else if `N + 1` is landscape, display `[N]`.
+- Else display `[N, N + 1]`.
 
 ## Spread navigation
 
-In spread mode, next/previous navigation moves by display groups.
+In spread mode, next/previous navigation moves by directional local display groups.
 
-For normal portrait pages:
+Next:
 
-- Next page increases `currentPageIndex` by 2.
-- Previous page decreases `currentPageIndex` by 2.
+- Let `N = currentGroup.last + 1`.
+- Create a forward group starting at `N`.
 
-At boundaries, clamp to a valid page index.
+Previous:
 
-If the target group would include a landscape page, apply the landscape page rules.
+- Let `N = currentGroup.first - 1`.
+- Create a backward group ending at `N`.
+- If `N` is before the first page, do not move.
+
+Backward group ending at `N`:
+
+- If `N` is landscape, display `[N]`.
+- Else if `N - 1` does not exist, display `[N]`.
+- Else if `N - 1` is landscape, display `[N]`.
+- Else display `[N - 1, N]`.
+
+When the current group already includes the final page, next navigation does not move.
+
+Boundary examples:
+
+- Previous from `[2, 3]` displays `[1]`.
+- Next from `[99, 100]` does not move when page 100 is the final page.
 
 ## Landscape pages in spread mode
 
 A landscape page is displayed alone.
 
-If a preferred spread group contains a landscape page, collapse according to NeeView-compatible behavior.
+If a forward or backward group would pair with a landscape page, display the non-landscape page alone.
 
-MVP accepts that pairing around landscape pages may shift when navigating backward or forward. This is known MVP behavior, not a bug unless this document later changes.
+Forward and backward navigation are not symmetrical around landscape pages.
+
+The app does not remember the previous forward path. It recalculates the previous group from the page immediately before the current group.
+
+Example pages:
+
+- Page 1: portrait.
+- Page 2: portrait.
+- Page 3: portrait.
+- Page 4: landscape.
+- Page 5: portrait.
+- Page 6: portrait.
+
+Forward from `[1, 2]`:
+
+- `[1, 2]`.
+- Next: `[3]`.
+- Next: `[4]`.
+- Next: `[5, 6]`.
+
+Backward from `[5, 6]`:
+
+- `[5, 6]`.
+- Previous: `[4]`.
+- Previous: `[2, 3]`.
+
+This asymmetry is expected.
 
 ## Spread visual order
 

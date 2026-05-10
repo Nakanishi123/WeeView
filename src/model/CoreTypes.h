@@ -21,6 +21,11 @@ enum class BookType {
     Zip,
 };
 
+enum class SpreadGroupDirection {
+    Forward,
+    Backward,
+};
+
 struct PageInfo {
     QString imageName;
     QString displayPath;
@@ -30,8 +35,10 @@ struct PageInfo {
 
 struct ViewerState {
     int currentPageIndex = 0;
+    int currentDisplayLastPageIndex = 0;
     ViewMode viewMode = ViewMode::SinglePage;
     ReadingDirection readingDirection = ReadingDirection::RightToLeft;
+    SpreadGroupDirection spreadGroupDirection = SpreadGroupDirection::Forward;
 };
 
 struct HistoryEntry {
@@ -39,9 +46,11 @@ struct HistoryEntry {
     BookType bookType = BookType::Folder;
     QString displayName;
     int lastPageIndex = 0;
+    int lastDisplayLastPageIndex = 0;
     int pageCount = 0;
     ViewMode viewMode = ViewMode::SinglePage;
     ReadingDirection readingDirection = ReadingDirection::RightToLeft;
+    SpreadGroupDirection spreadGroupDirection = SpreadGroupDirection::Forward;
     QDateTime lastOpenedAt;
 };
 

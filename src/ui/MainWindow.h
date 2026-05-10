@@ -28,7 +28,7 @@ class MainWindow final : public QMainWindow {
     void openFolderBook(const QString &folderPath, int requestedPageIndex = 0);
     void openImageFile(const QString &filePath);
     void openArchiveBook(const QString &archivePath);
-    void displayBook(int currentPageIndex);
+    void displayBook(const ViewerState &viewerState);
     [[nodiscard]] int pageIndexForPath(const QString &filePath) const;
     void handleCurrentPageChanged();
     void refreshCachedImages();

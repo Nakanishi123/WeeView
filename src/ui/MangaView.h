@@ -50,12 +50,17 @@ class MangaView final : public QWidget {
 
   private:
     [[nodiscard]] QVector<int> displayPageIndices() const;
+    [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
+    [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,
                                          Qt::Alignment horizontalAlignment = Qt::AlignHCenter) const;
     [[nodiscard]] int clampedPageIndex(int pageIndex) const;
     [[nodiscard]] bool hasPages() const;
     [[nodiscard]] bool hasImageForPage(int pageIndex) const;
     [[nodiscard]] bool isLandscapePage(int pageIndex) const;
+    void setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallbackPageIndex, SpreadGroupDirection direction,
+                                      int displayLastFallbackPageIndex = -1);
+    void refreshCurrentDisplayGroup();
     void goToFirstPage();
     void goToLastPage();
     void goToNextPage();
@@ -65,10 +70,13 @@ class MangaView final : public QWidget {
 
     QImage image_;
     QVector<QImage> pageImages_;
+    QVector<int> currentDisplayPageIndices_;
+    int currentDisplayLastPageIndex_ = 0;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;
     ViewMode viewMode_ = ViewMode::SinglePage;
     ReadingDirection readingDirection_ = ReadingDirection::RightToLeft;
+    SpreadGroupDirection spreadGroupDirection_ = SpreadGroupDirection::Forward;
 };
 
 } // namespace weeview
