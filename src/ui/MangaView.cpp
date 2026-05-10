@@ -67,6 +67,17 @@ void MangaView::clearPageImages() {
     update();
 }
 
+void MangaView::retainPageImages(const QSet<int> &pageIndices) {
+    for (int index = 0; index < pageImages_.size(); ++index) {
+        if (!pageIndices.contains(index)) {
+            pageImages_[index] = {};
+        }
+    }
+
+    image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
+    update();
+}
+
 void MangaView::setPageCount(int pageCount) {
     const auto normalizedPageCount = std::max(0, pageCount);
     if (pageCount_ == normalizedPageCount) {

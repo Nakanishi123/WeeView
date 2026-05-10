@@ -12,7 +12,10 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QSet>
 #include <QVector>
+
+#include <algorithm>
 
 namespace weeview {
 
@@ -44,8 +47,11 @@ void MainWindow::wireSidebar() {
     connect(sidebar, &Sidebar::archiveBookRequested, this, &MainWindow::openArchiveBook);
 
     auto *viewer = overlayContainer_->viewer();
-    connect(viewer, &MangaView::currentPageIndexChanged, this, [this] { saveCurrentHistory(); });
-    connect(viewer, &MangaView::viewModeChanged, this, [this] { saveCurrentHistory(); });
+    connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);
+    connect(viewer, &MangaView::viewModeChanged, this, [this] {
+        refreshCachedImages();
+        saveCurrentHistory();
+    });
     connect(viewer, &MangaView::readingDirectionChanged, this, [this] { saveCurrentHistory(); });
 }
 
@@ -107,16 +113,13 @@ void MainWindow::displayBook(int currentPageIndex) {
     }
 
     loadingBook_ = true;
-
-    QVector<QImage> images;
-    images.reserve(currentBook_->pageCount());
-    for (int index = 0; index < currentBook_->pageCount(); ++index) {
-        images.append(currentBook_->loadPage(index));
-    }
+    imageCache_.clear();
+    viewer->clearPageImages();
+    viewer->setPageCount(currentBook_->pageCount());
+    viewer->setCurrentPageIndex(currentPageIndex);
 
     header->setBookPath(currentBook_->sourcePath());
-    viewer->setPageImages(std::move(images));
-    viewer->setCurrentPageIndex(currentPageIndex);
+    refreshCachedImages();
 
     loadingBook_ = false;
     saveCurrentHistory();
@@ -135,6 +138,51 @@ int MainWindow::pageIndexForPath(const QString &filePath) const {
         }
     }
     return 0;
+}
+
+void MainWindow::handleCurrentPageChanged() {
+    refreshCachedImages();
+    saveCurrentHistory();
+}
+
+void MainWindow::refreshCachedImages() {
+    if (!currentBook_) {
+        return;
+    }
+
+    auto *viewer = overlayContainer_->viewer();
+    const auto currentPageIndex = viewer->currentPageIndex();
+    const auto pageCount = currentBook_->pageCount();
+    if (pageCount <= 0) {
+        viewer->retainPageImages({});
+        return;
+    }
+
+    const auto startIndex = std::max(0, currentPageIndex - 2);
+    const auto endIndex = std::min(pageCount - 1, currentPageIndex + 4);
+    QSet<int> retainedPageIndices;
+
+    for (int index = startIndex; index <= endIndex; ++index) {
+        loadPageIntoCache(index);
+        viewer->setPageImage(index, imageCache_.image(index));
+        retainedPageIndices.insert(index);
+    }
+
+    if (viewer->viewMode() == ViewMode::Spread && currentPageIndex + 1 < pageCount) {
+        loadPageIntoCache(currentPageIndex + 1);
+        viewer->setPageImage(currentPageIndex + 1, imageCache_.image(currentPageIndex + 1));
+        retainedPageIndices.insert(currentPageIndex + 1);
+    }
+
+    viewer->retainPageImages(retainedPageIndices);
+}
+
+void MainWindow::loadPageIntoCache(int pageIndex) {
+    if (!currentBook_ || pageIndex < 0 || pageIndex >= currentBook_->pageCount() || imageCache_.contains(pageIndex)) {
+        return;
+    }
+
+    imageCache_.insert(pageIndex, currentBook_->loadPage(pageIndex));
 }
 
 void MainWindow::loadHistory() {

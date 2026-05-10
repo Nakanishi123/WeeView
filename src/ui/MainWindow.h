@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/HistoryStore.h"
+#include "image/ImageCache.h"
 #include "model/Book.h"
 
 #include <QMainWindow>
@@ -29,6 +30,9 @@ class MainWindow final : public QMainWindow {
     void openArchiveBook(const QString &archivePath);
     void displayBook(int currentPageIndex);
     [[nodiscard]] int pageIndexForPath(const QString &filePath) const;
+    void handleCurrentPageChanged();
+    void refreshCachedImages();
+    void loadPageIntoCache(int pageIndex);
     void loadHistory();
     void saveCurrentHistory();
     void saveHistory();
@@ -39,6 +43,7 @@ class MainWindow final : public QMainWindow {
 
     OverlayContainer *overlayContainer_ = nullptr;
     HistoryStore historyStore_;
+    ImageCache imageCache_;
     QVector<HistoryEntry> historyEntries_;
     std::unique_ptr<Book> currentBook_;
     bool loadingBook_ = false;

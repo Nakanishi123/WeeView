@@ -4,6 +4,7 @@
 
 #include <QImage>
 #include <QRectF>
+#include <QSet>
 #include <QVector>
 #include <QWidget>
 
@@ -20,6 +21,7 @@ class MangaView final : public QWidget {
     void setPageImages(QVector<QImage> images);
     void clearImage();
     void clearPageImages();
+    void retainPageImages(const QSet<int> &pageIndices);
     void setPageCount(int pageCount);
     void setCurrentPageIndex(int pageIndex);
     void setViewMode(ViewMode viewMode);
