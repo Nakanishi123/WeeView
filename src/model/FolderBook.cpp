@@ -1,11 +1,11 @@
 #include "FolderBook.h"
 
+#include "image/ImageDecoder.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
 #include <QDir>
 #include <QFileInfo>
-#include <QImageReader>
 #include <QStringList>
 
 namespace weeview {
@@ -39,8 +39,7 @@ QImage FolderBook::loadPage(int pageIndex) const {
         return {};
     }
 
-    QImageReader reader(pages_.at(pageIndex).filePath);
-    return reader.read();
+    return ImageDecoder().readFile(pages_.at(pageIndex).filePath);
 }
 
 void FolderBook::scanPages() {
@@ -58,8 +57,7 @@ void FolderBook::scanPages() {
 
     pages_.reserve(pagePaths.size());
     for (const auto &pagePath : pagePaths) {
-        QImageReader reader(pagePath);
-        const auto imageSize = reader.size();
+        const auto imageSize = ImageDecoder().imageSize(pagePath);
 
         const QFileInfo pageFile(pagePath);
         pages_.append({

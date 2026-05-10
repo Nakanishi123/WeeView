@@ -1,12 +1,10 @@
 #include "ZipBook.h"
 
+#include "image/ImageDecoder.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
-#include <QBuffer>
 #include <QFileInfo>
-#include <QIODevice>
-#include <QImageReader>
 #include <QStringList>
 
 namespace weeview {
@@ -15,28 +13,6 @@ namespace {
 bool isIgnoredArchivePath(const QString &entryPath) {
     return entryPath.startsWith(QStringLiteral("__MACOSX/")) || entryPath.endsWith(QStringLiteral("/.DS_Store")) ||
            entryPath == QStringLiteral(".DS_Store");
-}
-
-QSize imageSizeFromData(const QByteArray &data) {
-    QBuffer buffer;
-    buffer.setData(data);
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-
-    QImageReader reader(&buffer);
-    return reader.size();
-}
-
-QImage imageFromData(const QByteArray &data) {
-    QBuffer buffer;
-    buffer.setData(data);
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-
-    QImageReader reader(&buffer);
-    return reader.read();
 }
 
 } // namespace
@@ -83,7 +59,7 @@ void ZipBook::scanPages() {
 
     pages_.reserve(pageEntryPaths.size());
     for (const auto &entryPath : pageEntryPaths) {
-        const auto imageSize = imageSizeFromData(reader_.readFile(entryPath));
+        const auto imageSize = ImageDecoder().imageSize(reader_.readFile(entryPath), entryPath);
         pages_.append({
             entryPath,
             {
@@ -98,6 +74,8 @@ void ZipBook::scanPages() {
 
 bool ZipBook::isValidPageIndex(int pageIndex) const { return pageIndex >= 0 && pageIndex < pages_.size(); }
 
-QImage ZipBook::imageFromEntry(const QString &entryPath) const { return imageFromData(reader_.readFile(entryPath)); }
+QImage ZipBook::imageFromEntry(const QString &entryPath) const {
+    return ImageDecoder().readData(reader_.readFile(entryPath), entryPath);
+}
 
 } // namespace weeview

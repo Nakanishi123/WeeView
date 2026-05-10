@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "app/AppSettingsStore.h"
+#include "image/ImageDecoder.h"
 #include "model/FolderBook.h"
 #include "model/ZipBook.h"
 #include "ui/HeaderBar.h"
@@ -10,6 +11,7 @@
 
 #include <QCloseEvent>
 #include <QDateTime>
+#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
@@ -25,6 +27,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     overlayContainer_ = new OverlayContainer(this);
     setCentralWidget(overlayContainer_);
+
+    if (!ImageDecoder::supportsAvif()) {
+        qWarning() << "Qt image plugins do not report AVIF support. AVIF files may not open in this environment.";
+    }
 
     const auto settings = AppSettingsStore().load();
     overlayContainer_->sidebar()->setHomeFolder(settings.homeFolder);
