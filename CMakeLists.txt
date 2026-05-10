@@ -26,6 +26,8 @@ file(GLOB_RECURSE WEEVIEW_SOURCES CONFIGURE_DEPENDS
 
 qt_add_executable(weeview ${WEEVIEW_SOURCES})
 
+target_include_directories(weeview PRIVATE src)
+
 target_link_libraries(weeview
     PRIVATE
         Qt6::Widgets
