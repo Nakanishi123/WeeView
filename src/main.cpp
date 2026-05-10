@@ -2,7 +2,7 @@
 #include <QMainWindow>
 
 #include "model/CoreTypes.h"
-#include "ui/MangaView.h"
+#include "ui/OverlayContainer.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
@@ -13,8 +13,8 @@ int main(int argc, char *argv[]) {
     window->setWindowTitle("WeeView");
     window->resize(960, 720);
 
-    auto *viewer = new weeview::MangaView(window);
-    window->setCentralWidget(viewer);
+    auto *overlayContainer = new weeview::OverlayContainer(window);
+    window->setCentralWidget(overlayContainer);
 
     window->show();
 

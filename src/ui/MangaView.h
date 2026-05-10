@@ -18,18 +18,22 @@ class MangaView final : public QWidget {
     void clearImage();
     void setPageCount(int pageCount);
     void setCurrentPageIndex(int pageIndex);
+    void setViewMode(ViewMode viewMode);
     void setReadingDirection(ReadingDirection readingDirection);
     void setViewerState(const ViewerState &state);
 
     [[nodiscard]] const QImage &image() const;
     [[nodiscard]] int pageCount() const;
     [[nodiscard]] int currentPageIndex() const;
+    [[nodiscard]] ViewMode viewMode() const;
     [[nodiscard]] ReadingDirection readingDirection() const;
     [[nodiscard]] ViewerState viewerState() const;
 
   signals:
     void currentPageIndexChanged(int pageIndex);
     void pageCountChanged(int pageCount);
+    void viewModeChanged(ViewMode viewMode);
+    void readingDirectionChanged(ReadingDirection readingDirection);
 
   protected:
     void paintEvent(QPaintEvent *event) override;
@@ -50,6 +54,7 @@ class MangaView final : public QWidget {
     QImage image_;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;
+    ViewMode viewMode_ = ViewMode::SinglePage;
     ReadingDirection readingDirection_ = ReadingDirection::RightToLeft;
 };
 

@@ -51,9 +51,26 @@ void MangaView::setCurrentPageIndex(int pageIndex) {
     emit currentPageIndexChanged(currentPageIndex_);
 }
 
-void MangaView::setReadingDirection(ReadingDirection readingDirection) { readingDirection_ = readingDirection; }
+void MangaView::setViewMode(ViewMode viewMode) {
+    if (viewMode_ == viewMode) {
+        return;
+    }
+
+    viewMode_ = viewMode;
+    emit viewModeChanged(viewMode_);
+}
+
+void MangaView::setReadingDirection(ReadingDirection readingDirection) {
+    if (readingDirection_ == readingDirection) {
+        return;
+    }
+
+    readingDirection_ = readingDirection;
+    emit readingDirectionChanged(readingDirection_);
+}
 
 void MangaView::setViewerState(const ViewerState &state) {
+    setViewMode(state.viewMode);
     setReadingDirection(state.readingDirection);
     setCurrentPageIndex(state.currentPageIndex);
 }
@@ -64,12 +81,14 @@ int MangaView::pageCount() const { return pageCount_; }
 
 int MangaView::currentPageIndex() const { return currentPageIndex_; }
 
+ViewMode MangaView::viewMode() const { return viewMode_; }
+
 ReadingDirection MangaView::readingDirection() const { return readingDirection_; }
 
 ViewerState MangaView::viewerState() const {
     return {
         currentPageIndex_,
-        ViewMode::SinglePage,
+        viewMode_,
         readingDirection_,
     };
 }
