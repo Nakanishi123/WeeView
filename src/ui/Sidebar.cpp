@@ -23,18 +23,6 @@ QString normalizedFolderPath(const QString &folderPath) {
     return info.isDir() ? info.absoluteFilePath() : QDir::homePath();
 }
 
-QString displayPrefix(Sidebar::EntryType entryType) {
-    switch (entryType) {
-    case Sidebar::EntryType::Directory:
-        return QStringLiteral("[D] ");
-    case Sidebar::EntryType::Image:
-        return QStringLiteral("[I][U] ");
-    case Sidebar::EntryType::Archive:
-        return QStringLiteral("[Z][U] ");
-    }
-    return {};
-}
-
 } // namespace
 
 Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
@@ -95,6 +83,11 @@ void Sidebar::setCurrentFolder(const QString &folderPath) { navigateToFolder(fol
 
 void Sidebar::setCurrentArchivePath(const QString &archivePath) {
     currentArchivePath_ = archivePath.isEmpty() ? QString() : QFileInfo(archivePath).absoluteFilePath();
+    populateFileList();
+}
+
+void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
+    historyEntries_ = historyEntries;
     populateFileList();
 }
 
@@ -217,13 +210,61 @@ void Sidebar::handleItemActivated(QListWidgetItem *item) {
 }
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {
-    auto *item = new QListWidgetItem(displayPrefix(entryType) + name, fileList_);
+    auto *item = new QListWidgetItem(displayPrefix(entryType, path) + name, fileList_);
     item->setData(entryTypeRole, static_cast<int>(entryType));
     item->setData(entryPathRole, QFileInfo(path).absoluteFilePath());
 
     if (entryType == EntryType::Archive && QFileInfo(path).absoluteFilePath() == currentArchivePath_) {
         item->setSelected(true);
     }
+}
+
+QString Sidebar::displayPrefix(EntryType entryType, const QString &path) const {
+    switch (entryType) {
+    case EntryType::Directory:
+        return QStringLiteral("[D] ");
+    case EntryType::Image:
+        return QStringLiteral("[I][%1] ").arg(readingStateText(entryType, path));
+    case EntryType::Archive:
+        return QStringLiteral("[Z][%1] ").arg(readingStateText(entryType, path));
+    }
+    return {};
+}
+
+QString Sidebar::readingStateText(EntryType entryType, const QString &path) const {
+    QString bookPath;
+    if (entryType == EntryType::Image) {
+        bookPath = QFileInfo(path).dir().absolutePath();
+    } else if (entryType == EntryType::Archive) {
+        bookPath = QFileInfo(path).absoluteFilePath();
+    } else {
+        return QStringLiteral("U");
+    }
+
+    const auto *entry = historyEntryForPath(bookPath);
+    if (entry == nullptr) {
+        return QStringLiteral("U");
+    }
+    if (entry->pageCount <= 0) {
+        return QStringLiteral("U");
+    }
+    if (entry->lastPageIndex >= entry->pageCount - 1) {
+        return QStringLiteral("C");
+    }
+    if (entry->lastPageIndex > 0) {
+        return QStringLiteral("R");
+    }
+    return QStringLiteral("U");
+}
+
+const HistoryEntry *Sidebar::historyEntryForPath(const QString &bookPath) const {
+    const auto normalizedPath = QFileInfo(bookPath).absoluteFilePath();
+    for (const auto &entry : historyEntries_) {
+        if (QFileInfo(entry.bookPath).absoluteFilePath() == normalizedPath) {
+            return &entry;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace weeview

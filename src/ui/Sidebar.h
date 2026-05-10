@@ -1,5 +1,8 @@
 #pragma once
 
+#include "model/CoreTypes.h"
+
+#include <QVector>
 #include <QWidget>
 
 class QLabel;
@@ -24,6 +27,7 @@ class Sidebar final : public QWidget {
     void setHomeFolder(const QString &homeFolder);
     void setCurrentFolder(const QString &folderPath);
     void setCurrentArchivePath(const QString &archivePath);
+    void setHistoryEntries(const QVector<HistoryEntry> &historyEntries);
     void reload();
 
     [[nodiscard]] QString currentFolder() const;
@@ -45,6 +49,9 @@ class Sidebar final : public QWidget {
     void updateNavigationButtons();
     void handleItemActivated(QListWidgetItem *item);
     void addEntry(EntryType entryType, const QString &name, const QString &path);
+    [[nodiscard]] QString displayPrefix(EntryType entryType, const QString &path) const;
+    [[nodiscard]] QString readingStateText(EntryType entryType, const QString &path) const;
+    [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
 
     QLabel *pathLabel_ = nullptr;
     QPushButton *homeButton_ = nullptr;
@@ -59,6 +66,7 @@ class Sidebar final : public QWidget {
     QString currentArchivePath_;
     QStringList backStack_;
     QStringList forwardStack_;
+    QVector<HistoryEntry> historyEntries_;
 };
 
 } // namespace weeview
