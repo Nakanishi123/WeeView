@@ -50,7 +50,8 @@ class MangaView final : public QWidget {
 
   private:
     [[nodiscard]] QVector<int> displayPageIndices() const;
-    [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image) const;
+    [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,
+                                         Qt::Alignment horizontalAlignment = Qt::AlignHCenter) const;
     [[nodiscard]] int clampedPageIndex(int pageIndex) const;
     [[nodiscard]] bool hasPages() const;
     [[nodiscard]] bool hasImageForPage(int pageIndex) const;

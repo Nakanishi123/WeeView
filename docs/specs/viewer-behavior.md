@@ -151,6 +151,12 @@ Left-to-right:
 - The lower/current page is shown on the left.
 - The higher/next page is shown on the right.
 
+In spread mode, each page fits within its half of the view, but the two pages are aligned to the center seam:
+
+- The left visual page's right edge touches the center seam.
+- The right visual page's left edge touches the center seam.
+- Vertical alignment remains centered.
+
 ## Zoom
 
 Zoom is not part of MVP.

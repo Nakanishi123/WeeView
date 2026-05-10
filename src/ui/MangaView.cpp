@@ -167,13 +167,14 @@ void MangaView::paintEvent(QPaintEvent *event) {
     const auto halfWidth = width() / 2.0;
     const QRectF leftRect(0, 0, halfWidth, height());
     const QRectF rightRect(halfWidth, 0, width() - halfWidth, height());
-    const auto firstPageRect = readingDirection_ == ReadingDirection::RightToLeft ? rightRect : leftRect;
-    const auto secondPageRect = readingDirection_ == ReadingDirection::RightToLeft ? leftRect : rightRect;
     const auto &firstPageImage = pageImages_.at(pageIndices.at(0));
     const auto &secondPageImage = pageImages_.at(pageIndices.at(1));
+    const auto *leftPageImage = readingDirection_ == ReadingDirection::RightToLeft ? &secondPageImage : &firstPageImage;
+    const auto *rightPageImage =
+        readingDirection_ == ReadingDirection::RightToLeft ? &firstPageImage : &secondPageImage;
 
-    painter.drawImage(fittedImageRect(firstPageRect, firstPageImage), firstPageImage);
-    painter.drawImage(fittedImageRect(secondPageRect, secondPageImage), secondPageImage);
+    painter.drawImage(fittedImageRect(leftRect, *leftPageImage, Qt::AlignRight), *leftPageImage);
+    painter.drawImage(fittedImageRect(rightRect, *rightPageImage, Qt::AlignLeft), *rightPageImage);
 }
 
 void MangaView::keyPressEvent(QKeyEvent *event) {
@@ -259,7 +260,8 @@ QVector<int> MangaView::displayPageIndices() const {
     return {currentPageIndex_, nextPageIndex};
 }
 
-QRectF MangaView::fittedImageRect(const QRectF &availableRect, const QImage &image) const {
+QRectF MangaView::fittedImageRect(const QRectF &availableRect, const QImage &image,
+                                  Qt::Alignment horizontalAlignment) const {
     const auto availableSize = availableRect.size();
     const auto imageSize = QSizeF(image.size());
 
@@ -269,8 +271,13 @@ QRectF MangaView::fittedImageRect(const QRectF &availableRect, const QImage &ima
 
     const auto scale = std::min(availableSize.width() / imageSize.width(), availableSize.height() / imageSize.height());
     const auto fittedSize = imageSize * scale;
-    const auto topLeft = QPointF(availableRect.left() + (availableSize.width() - fittedSize.width()) / 2.0,
-                                 availableRect.top() + (availableSize.height() - fittedSize.height()) / 2.0);
+    auto left = availableRect.left() + (availableSize.width() - fittedSize.width()) / 2.0;
+    if (horizontalAlignment.testFlag(Qt::AlignLeft)) {
+        left = availableRect.left();
+    } else if (horizontalAlignment.testFlag(Qt::AlignRight)) {
+        left = availableRect.right() - fittedSize.width();
+    }
+    const auto topLeft = QPointF(left, availableRect.top() + (availableSize.height() - fittedSize.height()) / 2.0);
 
     return QRectF(topLeft, fittedSize);
 }
