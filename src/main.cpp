@@ -1,10 +1,8 @@
 #include <QApplication>
-#include <QLabel>
 #include <QMainWindow>
-#include <QVBoxLayout>
-#include <QWidget>
 
 #include "model/CoreTypes.h"
+#include "ui/MangaView.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
@@ -15,14 +13,8 @@ int main(int argc, char *argv[]) {
     window->setWindowTitle("WeeView");
     window->resize(960, 720);
 
-    auto *central = new QWidget(window);
-    auto *layout = new QVBoxLayout(central);
-
-    auto *label = new QLabel("WeeView build test", central);
-    label->setAlignment(Qt::AlignCenter);
-
-    layout->addWidget(label);
-    window->setCentralWidget(central);
+    auto *viewer = new weeview::MangaView(window);
+    window->setCentralWidget(viewer);
 
     window->show();
 
