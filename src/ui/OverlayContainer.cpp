@@ -3,6 +3,7 @@
 #include "ui/FooterBar.h"
 #include "ui/HeaderBar.h"
 #include "ui/MangaView.h"
+#include "ui/Sidebar.h"
 
 #include <QEvent>
 #include <QMouseEvent>
@@ -23,26 +24,34 @@ OverlayContainer::OverlayContainer(QWidget *parent) : QWidget(parent) {
     viewer_ = new MangaView(this);
     headerBar_ = new HeaderBar(this);
     footerBar_ = new FooterBar(this);
+    sidebar_ = new Sidebar(this);
     headerHideTimer_ = new QTimer(this);
     footerHideTimer_ = new QTimer(this);
+    sidebarHideTimer_ = new QTimer(this);
 
     headerHideTimer_->setSingleShot(true);
     headerHideTimer_->setInterval(overlayHideDelayMs);
     footerHideTimer_->setSingleShot(true);
     footerHideTimer_->setInterval(overlayHideDelayMs);
+    sidebarHideTimer_->setSingleShot(true);
+    sidebarHideTimer_->setInterval(overlayHideDelayMs);
 
     headerBar_->hide();
     footerBar_->hide();
+    sidebar_->hide();
 
     viewer_->installEventFilter(this);
     headerBar_->installEventFilter(this);
     footerBar_->installEventFilter(this);
+    sidebar_->installEventFilter(this);
     viewer_->setMouseTracking(true);
     headerBar_->setMouseTracking(true);
     footerBar_->setMouseTracking(true);
+    sidebar_->setMouseTracking(true);
 
     connect(headerHideTimer_, &QTimer::timeout, headerBar_, &QWidget::hide);
     connect(footerHideTimer_, &QTimer::timeout, footerBar_, &QWidget::hide);
+    connect(sidebarHideTimer_, &QTimer::timeout, sidebar_, &QWidget::hide);
 
     wireControls();
 }
@@ -52,6 +61,8 @@ MangaView *OverlayContainer::viewer() const { return viewer_; }
 HeaderBar *OverlayContainer::headerBar() const { return headerBar_; }
 
 FooterBar *OverlayContainer::footerBar() const { return footerBar_; }
+
+Sidebar *OverlayContainer::sidebar() const { return sidebar_; }
 
 bool OverlayContainer::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseMove) {
@@ -95,7 +106,9 @@ void OverlayContainer::updateOverlayGeometry() {
 
     headerBar_->setGeometry(0, 0, width(), headerHeight);
     footerBar_->setGeometry(0, height() - footerHeight, width(), footerHeight);
+    sidebar_->setGeometry(0, 0, sidebar_->width(), height());
 
+    sidebar_->raise();
     headerBar_->raise();
     footerBar_->raise();
 }
@@ -116,6 +129,14 @@ void OverlayContainer::handleMousePosition(const QPoint &position) {
     } else if (footerBar_->isVisible() && !isFooterActive(position)) {
         scheduleFooterHide();
     }
+
+    if (position.x() <= edgeTriggerSize) {
+        showSidebar();
+    } else if (sidebar_->isVisible() && isSidebarActive(position)) {
+        sidebarHideTimer_->stop();
+    } else if (sidebar_->isVisible() && !isSidebarActive(position)) {
+        scheduleSidebarHide();
+    }
 }
 
 void OverlayContainer::showHeader() {
@@ -130,6 +151,12 @@ void OverlayContainer::showFooter() {
     footerBar_->raise();
 }
 
+void OverlayContainer::showSidebar() {
+    sidebarHideTimer_->stop();
+    sidebar_->show();
+    sidebar_->raise();
+}
+
 void OverlayContainer::scheduleHeaderHide() {
     if (!headerHideTimer_->isActive()) {
         headerHideTimer_->start();
@@ -142,12 +169,22 @@ void OverlayContainer::scheduleFooterHide() {
     }
 }
 
+void OverlayContainer::scheduleSidebarHide() {
+    if (!sidebarHideTimer_->isActive()) {
+        sidebarHideTimer_->start();
+    }
+}
+
 bool OverlayContainer::isHeaderActive(const QPoint &position) const {
     return position.y() <= edgeTriggerSize || headerBar_->geometry().contains(position);
 }
 
 bool OverlayContainer::isFooterActive(const QPoint &position) const {
     return position.y() >= height() - edgeTriggerSize || footerBar_->geometry().contains(position);
+}
+
+bool OverlayContainer::isSidebarActive(const QPoint &position) const {
+    return position.x() <= edgeTriggerSize || sidebar_->geometry().contains(position);
 }
 
 } // namespace weeview

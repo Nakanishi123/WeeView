@@ -9,6 +9,7 @@ namespace weeview {
 class FooterBar;
 class HeaderBar;
 class MangaView;
+class Sidebar;
 
 class OverlayContainer final : public QWidget {
     Q_OBJECT
@@ -19,6 +20,7 @@ class OverlayContainer final : public QWidget {
     [[nodiscard]] MangaView *viewer() const;
     [[nodiscard]] HeaderBar *headerBar() const;
     [[nodiscard]] FooterBar *footerBar() const;
+    [[nodiscard]] Sidebar *sidebar() const;
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -30,16 +32,21 @@ class OverlayContainer final : public QWidget {
     void handleMousePosition(const QPoint &position);
     void showHeader();
     void showFooter();
+    void showSidebar();
     void scheduleHeaderHide();
     void scheduleFooterHide();
+    void scheduleSidebarHide();
     [[nodiscard]] bool isHeaderActive(const QPoint &position) const;
     [[nodiscard]] bool isFooterActive(const QPoint &position) const;
+    [[nodiscard]] bool isSidebarActive(const QPoint &position) const;
 
     MangaView *viewer_ = nullptr;
     HeaderBar *headerBar_ = nullptr;
     FooterBar *footerBar_ = nullptr;
+    Sidebar *sidebar_ = nullptr;
     QTimer *headerHideTimer_ = nullptr;
     QTimer *footerHideTimer_ = nullptr;
+    QTimer *sidebarHideTimer_ = nullptr;
 };
 
 } // namespace weeview
