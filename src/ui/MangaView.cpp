@@ -1,5 +1,7 @@
 #include "MangaView.h"
 
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
 #include <QRectF>
@@ -11,6 +13,7 @@ namespace weeview {
 
 MangaView::MangaView(QWidget *parent) : QWidget(parent) {
     setAutoFillBackground(true);
+    setFocusPolicy(Qt::StrongFocus);
 
     auto viewPalette = palette();
     viewPalette.setColor(QPalette::Window, Qt::black);
@@ -27,7 +30,49 @@ void MangaView::clearImage() {
     update();
 }
 
+void MangaView::setPageCount(int pageCount) {
+    const auto normalizedPageCount = std::max(0, pageCount);
+    if (pageCount_ == normalizedPageCount) {
+        return;
+    }
+
+    pageCount_ = normalizedPageCount;
+    emit pageCountChanged(pageCount_);
+    setCurrentPageIndex(currentPageIndex_);
+}
+
+void MangaView::setCurrentPageIndex(int pageIndex) {
+    const auto nextPageIndex = clampedPageIndex(pageIndex);
+    if (currentPageIndex_ == nextPageIndex) {
+        return;
+    }
+
+    currentPageIndex_ = nextPageIndex;
+    emit currentPageIndexChanged(currentPageIndex_);
+}
+
+void MangaView::setReadingDirection(ReadingDirection readingDirection) { readingDirection_ = readingDirection; }
+
+void MangaView::setViewerState(const ViewerState &state) {
+    setReadingDirection(state.readingDirection);
+    setCurrentPageIndex(state.currentPageIndex);
+}
+
 const QImage &MangaView::image() const { return image_; }
+
+int MangaView::pageCount() const { return pageCount_; }
+
+int MangaView::currentPageIndex() const { return currentPageIndex_; }
+
+ReadingDirection MangaView::readingDirection() const { return readingDirection_; }
+
+ViewerState MangaView::viewerState() const {
+    return {
+        currentPageIndex_,
+        ViewMode::SinglePage,
+        readingDirection_,
+    };
+}
 
 void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
@@ -39,6 +84,55 @@ void MangaView::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter.drawImage(fittedImageRect(), image_);
+}
+
+void MangaView::keyPressEvent(QKeyEvent *event) {
+    switch (event->key()) {
+    case Qt::Key_Left:
+        goToDirectionAwareLeft();
+        event->accept();
+        return;
+    case Qt::Key_Right:
+        goToDirectionAwareRight();
+        event->accept();
+        return;
+    case Qt::Key_Space:
+    case Qt::Key_PageDown:
+        goToNextPage();
+        event->accept();
+        return;
+    case Qt::Key_Backspace:
+    case Qt::Key_PageUp:
+        goToPreviousPage();
+        event->accept();
+        return;
+    case Qt::Key_Home:
+        goToFirstPage();
+        event->accept();
+        return;
+    case Qt::Key_End:
+        goToLastPage();
+        event->accept();
+        return;
+    default:
+        QWidget::keyPressEvent(event);
+    }
+}
+
+void MangaView::mousePressEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    setFocus(Qt::MouseFocusReason);
+
+    if (event->position().x() < width() / 2.0) {
+        goToDirectionAwareLeft();
+    } else {
+        goToDirectionAwareRight();
+    }
+    event->accept();
 }
 
 QRectF MangaView::fittedImageRect() const {
@@ -55,6 +149,39 @@ QRectF MangaView::fittedImageRect() const {
                                  (availableSize.height() - fittedSize.height()) / 2.0);
 
     return QRectF(topLeft, fittedSize);
+}
+
+int MangaView::clampedPageIndex(int pageIndex) const {
+    if (!hasPages()) {
+        return 0;
+    }
+    return std::clamp(pageIndex, 0, pageCount_ - 1);
+}
+
+bool MangaView::hasPages() const { return pageCount_ > 0; }
+
+void MangaView::goToFirstPage() { setCurrentPageIndex(0); }
+
+void MangaView::goToLastPage() { setCurrentPageIndex(pageCount_ - 1); }
+
+void MangaView::goToNextPage() { setCurrentPageIndex(currentPageIndex_ + 1); }
+
+void MangaView::goToPreviousPage() { setCurrentPageIndex(currentPageIndex_ - 1); }
+
+void MangaView::goToDirectionAwareLeft() {
+    if (readingDirection_ == ReadingDirection::RightToLeft) {
+        goToNextPage();
+    } else {
+        goToPreviousPage();
+    }
+}
+
+void MangaView::goToDirectionAwareRight() {
+    if (readingDirection_ == ReadingDirection::RightToLeft) {
+        goToPreviousPage();
+    } else {
+        goToNextPage();
+    }
 }
 
 } // namespace weeview
