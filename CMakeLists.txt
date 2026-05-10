@@ -19,6 +19,7 @@ pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
 qt_standard_project_setup()
 
 qt_add_executable(weeview
+    src/model/CoreTypes.h
     src/main.cpp
 )
 

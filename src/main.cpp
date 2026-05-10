@@ -4,8 +4,12 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "model/CoreTypes.h"
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
+
+    [[maybe_unused]] const weeview::ViewerState defaultViewerState;
 
     auto *window = new QMainWindow();
     window->setWindowTitle("WeeView");
