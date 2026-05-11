@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
+#include <QTimer>
 #include <QVector>
 
 #include <algorithm>
@@ -32,15 +33,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         qWarning() << "Qt image plugins do not report AVIF support. AVIF files may not open in this environment.";
     }
 
-    const auto settings = AppSettingsStore().load();
-    overlayContainer_->sidebar()->setHomeFolder(settings.homeFolder);
-    overlayContainer_->sidebar()->setCurrentFolder(settings.homeFolder);
+    appSettings_ = AppSettingsStore().load();
+    deferredPageLoadTimer_ = new QTimer(this);
+    deferredPageLoadTimer_->setSingleShot(true);
+    connect(deferredPageLoadTimer_, &QTimer::timeout, this, &MainWindow::executeDeferredPageLoad);
+
+    overlayContainer_->sidebar()->setHomeFolder(appSettings_.homeFolder);
+    overlayContainer_->sidebar()->setCurrentFolder(appSettings_.homeFolder);
 
     loadHistory();
     wireSidebar();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
+    cancelDeferredPageLoad();
     saveCurrentHistory();
     QMainWindow::closeEvent(event);
 }
@@ -55,6 +61,7 @@ void MainWindow::wireSidebar() {
     auto *viewer = overlayContainer_->viewer();
     connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);
     connect(viewer, &MangaView::viewModeChanged, this, [this] {
+        cancelDeferredPageLoad();
         refreshCachedImages();
         saveCurrentHistory();
     });
@@ -62,6 +69,7 @@ void MainWindow::wireSidebar() {
 }
 
 void MainWindow::openFolderBook(const QString &folderPath, int requestedPageIndex) {
+    cancelDeferredPageLoad();
     saveCurrentHistory();
 
     auto book = std::make_unique<FolderBook>(folderPath);
@@ -81,6 +89,7 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
 }
 
 void MainWindow::openImageFile(const QString &filePath) {
+    cancelDeferredPageLoad();
     saveCurrentHistory();
 
     const QFileInfo fileInfo(filePath);
@@ -99,6 +108,7 @@ void MainWindow::openImageFile(const QString &filePath) {
 }
 
 void MainWindow::openArchiveBook(const QString &archivePath) {
+    cancelDeferredPageLoad();
     saveCurrentHistory();
 
     auto book = std::make_unique<ZipBook>(archivePath);
@@ -132,6 +142,12 @@ void MainWindow::displayBook(const ViewerState &viewerState) {
     imageCache_.clear();
     viewer->clearPageImages();
     viewer->setPageCount(currentBook_->pageCount());
+    QVector<bool> landscapePages;
+    landscapePages.reserve(currentBook_->pageCount());
+    for (int index = 0; index < currentBook_->pageCount(); ++index) {
+        landscapePages.append(currentBook_->pageInfo(index).isLandscape);
+    }
+    viewer->setPageLandscapeFlags(landscapePages);
     viewer->setViewerState(viewerState);
 
     header->setBookPath(currentBook_->sourcePath());
@@ -157,8 +173,34 @@ int MainWindow::pageIndexForPath(const QString &filePath) const {
 }
 
 void MainWindow::handleCurrentPageChanged() {
+    if (loadingBook_) {
+        return;
+    }
+
+    scheduleDeferredPageLoad();
+}
+
+void MainWindow::scheduleDeferredPageLoad() {
+    if (appSettings_.pageLoadDebounceMs <= 0) {
+        executeDeferredPageLoad();
+        return;
+    }
+
+    deferredPageLoadPending_ = true;
+    deferredPageLoadTimer_->start(appSettings_.pageLoadDebounceMs);
+}
+
+void MainWindow::executeDeferredPageLoad() {
+    deferredPageLoadPending_ = false;
     refreshCachedImages();
     saveCurrentHistory();
+}
+
+void MainWindow::cancelDeferredPageLoad() {
+    if (deferredPageLoadTimer_ != nullptr) {
+        deferredPageLoadTimer_->stop();
+    }
+    deferredPageLoadPending_ = false;
 }
 
 void MainWindow::refreshCachedImages() {

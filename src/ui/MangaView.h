@@ -19,6 +19,7 @@ class MangaView final : public QWidget {
     void setImage(QImage image);
     void setPageImage(int pageIndex, QImage image);
     void setPageImages(QVector<QImage> images);
+    void setPageLandscapeFlags(QVector<bool> landscapePages);
     void clearImage();
     void clearPageImages();
     void retainPageImages(const QSet<int> &pageIndices);
@@ -50,13 +51,16 @@ class MangaView final : public QWidget {
 
   private:
     [[nodiscard]] QVector<int> displayPageIndices() const;
+    [[nodiscard]] QVector<int> paintPageIndices() const;
     [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,
                                          Qt::Alignment horizontalAlignment = Qt::AlignHCenter) const;
     [[nodiscard]] int clampedPageIndex(int pageIndex) const;
     [[nodiscard]] bool hasPages() const;
+    [[nodiscard]] bool hasPage(int pageIndex) const;
     [[nodiscard]] bool hasImageForPage(int pageIndex) const;
+    [[nodiscard]] bool hasImagesForPages(const QVector<int> &pageIndices) const;
     [[nodiscard]] bool isLandscapePage(int pageIndex) const;
     void setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallbackPageIndex, SpreadGroupDirection direction,
                                       int displayLastFallbackPageIndex = -1);
@@ -70,7 +74,9 @@ class MangaView final : public QWidget {
 
     QImage image_;
     QVector<QImage> pageImages_;
+    QVector<bool> landscapePages_;
     QVector<int> currentDisplayPageIndices_;
+    QVector<int> lastPaintablePageIndices_;
     int currentDisplayLastPageIndex_ = 0;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;

@@ -24,6 +24,7 @@ Required settings:
 - Default view mode.
 - Overlay edge trigger size.
 - Overlay hide delay.
+- Page load debounce duration.
 
 If no home folder is configured, use the user's home directory.
 
@@ -33,6 +34,12 @@ Default values:
 - View mode: single page.
 - Overlay edge trigger size: 24 px.
 - Overlay hide delay: 800 ms.
+- Page load debounce duration: 120 ms.
+
+`pageLoadDebounceMs` configures the page image load delay after page navigation.
+
+- If `pageLoadDebounceMs > 0`, page image loading after page navigation waits for that many milliseconds without another page change.
+- If `pageLoadDebounceMs <= 0`, page image loading after page navigation happens immediately.
 
 ## History
 

@@ -14,6 +14,7 @@ struct AppSettings {
     ViewMode defaultViewMode = ViewMode::SinglePage;
     int overlayEdgeTriggerSize = 24;
     int overlayHideDelayMs = 800;
+    int pageLoadDebounceMs = 120;
 };
 
 } // namespace weeview

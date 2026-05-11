@@ -8,6 +8,8 @@ A page is landscape when `width > height`.
 
 Landscape pages are displayed as single pages in spread mode.
 
+Spread grouping is based on page metadata, not decoded image cache state.
+
 `currentPageIndex` is zero-based and means the logical first page index of the current display group.
 
 - In single-page mode, it is the displayed page.
@@ -82,6 +84,20 @@ Mouse wheel navigation is independent of reading direction:
 - Wheel up: previous page.
 
 Mouse wheel zoom is not part of MVP.
+
+## Page loading during rapid navigation
+
+Page state changes immediately during slider, keyboard, mouse click, and mouse wheel navigation.
+
+Image loading after page navigation may be delayed by `pageLoadDebounceMs`.
+
+While delayed loading is pending:
+
+- The most recent successfully painted page or spread remains visible if the new target page is not loaded yet.
+- The final target page is loaded after navigation has been quiet for `pageLoadDebounceMs`.
+- Logical page grouping continues to use page metadata and must not shift because target images are not loaded yet.
+
+If `pageLoadDebounceMs <= 0`, page images load immediately after each page navigation.
 
 ## Single-page mode
 

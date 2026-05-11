@@ -12,6 +12,7 @@ constexpr auto defaultReadingDirectionKey = "defaultReadingDirection";
 constexpr auto defaultViewModeKey = "defaultViewMode";
 constexpr auto overlayEdgeTriggerSizeKey = "overlayEdgeTriggerSize";
 constexpr auto overlayHideDelayMsKey = "overlayHideDelayMs";
+constexpr auto pageLoadDebounceMsKey = "pageLoadDebounceMs";
 
 constexpr auto bookPathKey = "bookPath";
 constexpr auto bookTypeKey = "bookType";
@@ -44,6 +45,7 @@ QJsonObject toJson(const AppSettings &settings) {
         {QLatin1String(defaultViewModeKey), toJsonString(settings.defaultViewMode)},
         {QLatin1String(overlayEdgeTriggerSizeKey), settings.overlayEdgeTriggerSize},
         {QLatin1String(overlayHideDelayMsKey), settings.overlayHideDelayMs},
+        {QLatin1String(pageLoadDebounceMsKey), settings.pageLoadDebounceMs},
     };
 }
 
@@ -61,6 +63,7 @@ AppSettings appSettingsFromJson(const QJsonObject &object) {
         stringValue(object, defaultViewModeKey, toJsonString(settings.defaultViewMode)), settings.defaultViewMode);
     settings.overlayEdgeTriggerSize = intValue(object, overlayEdgeTriggerSizeKey, settings.overlayEdgeTriggerSize);
     settings.overlayHideDelayMs = intValue(object, overlayHideDelayMsKey, settings.overlayHideDelayMs);
+    settings.pageLoadDebounceMs = intValue(object, pageLoadDebounceMsKey, settings.pageLoadDebounceMs);
     return settings;
 }
 

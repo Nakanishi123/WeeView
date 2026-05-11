@@ -56,6 +56,15 @@ void MangaView::setPageImages(QVector<QImage> images) {
     update();
 }
 
+void MangaView::setPageLandscapeFlags(QVector<bool> landscapePages) {
+    landscapePages_ = std::move(landscapePages);
+    if (landscapePages_.size() < pageCount_) {
+        landscapePages_.resize(pageCount_);
+    }
+    refreshCurrentDisplayGroup();
+    update();
+}
+
 void MangaView::clearImage() {
     image_ = {};
     if (hasImageForPage(currentPageIndex_)) {
@@ -67,7 +76,9 @@ void MangaView::clearImage() {
 void MangaView::clearPageImages() {
     image_ = {};
     pageImages_.clear();
+    landscapePages_.clear();
     currentDisplayPageIndices_.clear();
+    lastPaintablePageIndices_.clear();
     setPageCount(0);
     update();
 }
@@ -111,6 +122,9 @@ void MangaView::setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallb
     currentDisplayLastPageIndex_ =
         pageIndices.isEmpty() ? clampedPageIndex(fallbackDisplayLastPageIndex) : pageIndices.last();
     currentDisplayPageIndices_ = std::move(pageIndices);
+    if (hasImagesForPages(currentDisplayPageIndices_)) {
+        lastPaintablePageIndices_ = currentDisplayPageIndices_;
+    }
     currentPageIndex_ = nextPageIndex;
     image_ = hasImageForPage(currentPageIndex_) ? pageImages_.at(currentPageIndex_) : QImage();
 
@@ -125,7 +139,7 @@ void MangaView::setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallb
 
 void MangaView::refreshCurrentDisplayGroup() {
     if (viewMode_ == ViewMode::SinglePage) {
-        const auto pageIndices = hasImageForPage(currentPageIndex_) ? QVector<int>{currentPageIndex_} : QVector<int>{};
+        const auto pageIndices = hasPage(currentPageIndex_) ? QVector<int>{currentPageIndex_} : QVector<int>{};
         setCurrentPageIndexFromGroup(pageIndices, currentPageIndex_, spreadGroupDirection_);
         return;
     }
@@ -189,7 +203,7 @@ ViewerState MangaView::viewerState() const {
 void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 
-    const auto pageIndices = displayPageIndices();
+    const auto pageIndices = paintPageIndices();
     if (pageIndices.isEmpty()) {
         return;
     }
@@ -284,13 +298,21 @@ void MangaView::wheelEvent(QWheelEvent *event) {
 
 QVector<int> MangaView::displayPageIndices() const { return currentDisplayPageIndices_; }
 
+QVector<int> MangaView::paintPageIndices() const {
+    if (hasImagesForPages(currentDisplayPageIndices_)) {
+        return currentDisplayPageIndices_;
+    }
+
+    return hasImagesForPages(lastPaintablePageIndices_) ? lastPaintablePageIndices_ : QVector<int>{};
+}
+
 QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
     if (!hasPages()) {
         return {};
     }
 
     const auto firstPageIndex = clampedPageIndex(pageIndex);
-    if (!hasImageForPage(firstPageIndex)) {
+    if (!hasPage(firstPageIndex)) {
         return {};
     }
 
@@ -299,7 +321,7 @@ QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
     }
 
     const auto nextPageIndex = firstPageIndex + 1;
-    if (nextPageIndex >= pageCount_ || !hasImageForPage(nextPageIndex) || isLandscapePage(nextPageIndex)) {
+    if (!hasPage(nextPageIndex) || isLandscapePage(nextPageIndex)) {
         return {firstPageIndex};
     }
 
@@ -312,7 +334,7 @@ QVector<int> MangaView::backwardSpreadGroup(int pageIndex) const {
     }
 
     const auto lastPageIndex = clampedPageIndex(pageIndex);
-    if (!hasImageForPage(lastPageIndex)) {
+    if (!hasPage(lastPageIndex)) {
         return {};
     }
 
@@ -321,7 +343,7 @@ QVector<int> MangaView::backwardSpreadGroup(int pageIndex) const {
     }
 
     const auto previousPageIndex = lastPageIndex - 1;
-    if (previousPageIndex < 0 || !hasImageForPage(previousPageIndex) || isLandscapePage(previousPageIndex)) {
+    if (!hasPage(previousPageIndex) || isLandscapePage(previousPageIndex)) {
         return {lastPageIndex};
     }
 
@@ -359,17 +381,35 @@ int MangaView::clampedPageIndex(int pageIndex) const {
 
 bool MangaView::hasPages() const { return pageCount_ > 0; }
 
+bool MangaView::hasPage(int pageIndex) const { return pageIndex >= 0 && pageIndex < pageCount_; }
+
 bool MangaView::hasImageForPage(int pageIndex) const {
     return pageIndex >= 0 && pageIndex < pageImages_.size() && !pageImages_.at(pageIndex).isNull();
 }
 
-bool MangaView::isLandscapePage(int pageIndex) const {
-    if (!hasImageForPage(pageIndex)) {
+bool MangaView::hasImagesForPages(const QVector<int> &pageIndices) const {
+    if (pageIndices.isEmpty()) {
         return false;
     }
 
-    const auto imageSize = pageImages_.at(pageIndex).size();
-    return imageSize.width() > imageSize.height();
+    for (const auto pageIndex : pageIndices) {
+        if (!hasImageForPage(pageIndex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool MangaView::isLandscapePage(int pageIndex) const {
+    if (!hasPage(pageIndex)) {
+        return false;
+    }
+
+    if (pageIndex < landscapePages_.size()) {
+        return landscapePages_.at(pageIndex);
+    }
+
+    return false;
 }
 
 void MangaView::goToFirstPage() { setCurrentPageIndex(0); }
