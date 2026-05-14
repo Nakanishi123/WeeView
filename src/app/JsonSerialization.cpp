@@ -13,6 +13,7 @@ constexpr auto defaultViewModeKey = "defaultViewMode";
 constexpr auto overlayEdgeTriggerSizeKey = "overlayEdgeTriggerSize";
 constexpr auto overlayHideDelayMsKey = "overlayHideDelayMs";
 constexpr auto pageLoadDebounceMsKey = "pageLoadDebounceMs";
+constexpr auto sidebarWidthKey = "sidebarWidth";
 constexpr auto windowWidthKey = "windowWidth";
 constexpr auto windowHeightKey = "windowHeight";
 constexpr auto windowMaximizedKey = "windowMaximized";
@@ -54,6 +55,7 @@ QJsonObject toJson(const AppSettings &settings) {
         {QLatin1String(overlayEdgeTriggerSizeKey), settings.overlayEdgeTriggerSize},
         {QLatin1String(overlayHideDelayMsKey), settings.overlayHideDelayMs},
         {QLatin1String(pageLoadDebounceMsKey), settings.pageLoadDebounceMs},
+        {QLatin1String(sidebarWidthKey), settings.sidebarWidth},
         {QLatin1String(windowWidthKey), settings.windowWidth},
         {QLatin1String(windowHeightKey), settings.windowHeight},
         {QLatin1String(windowMaximizedKey), settings.windowMaximized},
@@ -75,6 +77,7 @@ AppSettings appSettingsFromJson(const QJsonObject &object) {
     settings.overlayEdgeTriggerSize = intValue(object, overlayEdgeTriggerSizeKey, settings.overlayEdgeTriggerSize);
     settings.overlayHideDelayMs = intValue(object, overlayHideDelayMsKey, settings.overlayHideDelayMs);
     settings.pageLoadDebounceMs = intValue(object, pageLoadDebounceMsKey, settings.pageLoadDebounceMs);
+    settings.sidebarWidth = intValue(object, sidebarWidthKey, settings.sidebarWidth);
     settings.windowWidth = intValue(object, windowWidthKey, settings.windowWidth);
     settings.windowHeight = intValue(object, windowHeightKey, settings.windowHeight);
     settings.windowMaximized = boolValue(object, windowMaximizedKey, settings.windowMaximized);

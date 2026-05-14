@@ -31,8 +31,9 @@ When a ZIP/CBZ book is open:
 - Hidden by default.
 - Moving the mouse to the left edge shows the sidebar.
 - Sidebar overlays the image area.
+- Dragging the sidebar's right edge resizes the sidebar.
 
-MVP uses fixed overlay behavior. No settings UI is required.
+The sidebar width is persisted in settings and restored on startup. No settings UI is required.
 
 ### Sidebar controls
 

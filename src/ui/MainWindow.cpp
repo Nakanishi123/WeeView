@@ -40,6 +40,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     overlayContainer_->sidebar()->setHomeFolder(appSettings_.homeFolder);
     overlayContainer_->sidebar()->setCurrentFolder(appSettings_.homeFolder);
+    overlayContainer_->sidebar()->setSidebarWidth(appSettings_.sidebarWidth);
 
     loadHistory();
     wireSidebar();
@@ -72,6 +73,7 @@ void MainWindow::saveAppSettings() {
     appSettings_.windowWidth = std::max(320, normalSize.width());
     appSettings_.windowHeight = std::max(240, normalSize.height());
     appSettings_.windowMaximized = isMaximized();
+    appSettings_.sidebarWidth = overlayContainer_->sidebar()->sidebarWidth();
     [[maybe_unused]] const auto saved = AppSettingsStore().save(appSettings_);
 }
 
@@ -81,6 +83,7 @@ void MainWindow::wireSidebar() {
             [this](const QString &folderPath) { openFolderBook(folderPath); });
     connect(sidebar, &Sidebar::imageFileRequested, this, &MainWindow::openImageFile);
     connect(sidebar, &Sidebar::archiveBookRequested, this, &MainWindow::openArchiveBook);
+    connect(sidebar, &Sidebar::sidebarWidthChanged, this, [this](int width) { appSettings_.sidebarWidth = width; });
 
     auto *viewer = overlayContainer_->viewer();
     connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);

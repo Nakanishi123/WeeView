@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSize>
 #include <QTimer>
@@ -26,6 +27,9 @@ constexpr int entryPathRole = Qt::UserRole + 1;
 constexpr int folderSingleClickDelayMs = 160;
 constexpr int navigationButtonSize = 37;
 constexpr int navigationIconSize = 23;
+constexpr int resizeHandleWidth = 8;
+constexpr int minimumSidebarWidth = 220;
+constexpr int maximumSidebarWidth = 720;
 const QColor iconColor(245, 245, 245);
 
 QString normalizedFolderPath(const QString &folderPath) {
@@ -48,6 +52,7 @@ QPushButton *createNavigationButton(const QString &iconPath, const QString &labe
 
 Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     setAutoFillBackground(true);
+    setMouseTracking(true);
     setFixedWidth(320);
     setStyleSheet(QStringLiteral("Sidebar { background: rgba(28, 28, 28, 235); color: white; }"
                                  "QLabel { color: white; }"
@@ -115,6 +120,16 @@ void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
     populateFileList();
 }
 
+void Sidebar::setSidebarWidth(int width) {
+    const auto clampedWidth = std::clamp(width, minimumSidebarWidth, maximumSidebarWidth);
+    if (this->width() == clampedWidth) {
+        return;
+    }
+
+    setFixedWidth(clampedWidth);
+    emit sidebarWidthChanged(clampedWidth);
+}
+
 void Sidebar::reload() { populateFileList(); }
 
 QString Sidebar::currentFolder() const { return currentFolder_; }
@@ -122,6 +137,51 @@ QString Sidebar::currentFolder() const { return currentFolder_; }
 QString Sidebar::homeFolder() const { return homeFolder_; }
 
 QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
+
+int Sidebar::sidebarWidth() const { return width(); }
+
+void Sidebar::mouseMoveEvent(QMouseEvent *event) {
+    if (resizing_) {
+        const auto delta = event->globalPosition().toPoint().x() - resizeStartGlobalX_;
+        setSidebarWidth(resizeStartWidth_ + delta);
+        event->accept();
+        return;
+    }
+
+    if (isResizeHandlePosition(event->position().toPoint())) {
+        setCursor(Qt::SizeHorCursor);
+    } else {
+        unsetCursor();
+    }
+
+    QWidget::mouseMoveEvent(event);
+}
+
+void Sidebar::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && isResizeHandlePosition(event->position().toPoint())) {
+        resizing_ = true;
+        resizeStartGlobalX_ = event->globalPosition().toPoint().x();
+        resizeStartWidth_ = width();
+        setCursor(Qt::SizeHorCursor);
+        event->accept();
+        return;
+    }
+
+    QWidget::mousePressEvent(event);
+}
+
+void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
+    if (resizing_ && event->button() == Qt::LeftButton) {
+        resizing_ = false;
+        if (!isResizeHandlePosition(event->position().toPoint())) {
+            unsetCursor();
+        }
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseReleaseEvent(event);
+}
 
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     clearPendingDirectoryClick();
@@ -325,6 +385,10 @@ const HistoryEntry *Sidebar::historyEntryForPath(const QString &bookPath) const 
         }
     }
     return nullptr;
+}
+
+bool Sidebar::isResizeHandlePosition(const QPoint &position) const {
+    return position.x() >= width() - resizeHandleWidth;
 }
 
 } // namespace weeview

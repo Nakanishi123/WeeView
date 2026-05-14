@@ -52,6 +52,7 @@ OverlayContainer::OverlayContainer(QWidget *parent) : QWidget(parent) {
     connect(headerHideTimer_, &QTimer::timeout, headerBar_, &QWidget::hide);
     connect(footerHideTimer_, &QTimer::timeout, footerBar_, &QWidget::hide);
     connect(sidebarHideTimer_, &QTimer::timeout, sidebar_, &QWidget::hide);
+    connect(sidebar_, &Sidebar::sidebarWidthChanged, this, &OverlayContainer::updateOverlayGeometry);
 
     wireControls();
 }

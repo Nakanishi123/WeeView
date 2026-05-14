@@ -29,16 +29,24 @@ class Sidebar final : public QWidget {
     void setCurrentFolder(const QString &folderPath);
     void setCurrentArchivePath(const QString &archivePath);
     void setHistoryEntries(const QVector<HistoryEntry> &historyEntries);
+    void setSidebarWidth(int width);
     void reload();
 
     [[nodiscard]] QString currentFolder() const;
     [[nodiscard]] QString homeFolder() const;
     [[nodiscard]] QString currentArchivePath() const;
+    [[nodiscard]] int sidebarWidth() const;
 
   signals:
     void folderBookRequested(const QString &folderPath);
     void imageFileRequested(const QString &filePath);
     void archiveBookRequested(const QString &archivePath);
+    void sidebarWidthChanged(int width);
+
+  protected:
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
   private:
     void navigateToFolder(const QString &folderPath, bool recordHistory = true);
@@ -56,6 +64,7 @@ class Sidebar final : public QWidget {
     [[nodiscard]] QString displayPrefix(EntryType entryType, const QString &path) const;
     [[nodiscard]] QString readingStateText(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
+    [[nodiscard]] bool isResizeHandlePosition(const QPoint &position) const;
 
     QLabel *pathLabel_ = nullptr;
     QPushButton *homeButton_ = nullptr;
@@ -73,6 +82,9 @@ class Sidebar final : public QWidget {
     QStringList backStack_;
     QStringList forwardStack_;
     QVector<HistoryEntry> historyEntries_;
+    bool resizing_ = false;
+    int resizeStartGlobalX_ = 0;
+    int resizeStartWidth_ = 0;
 };
 
 } // namespace weeview

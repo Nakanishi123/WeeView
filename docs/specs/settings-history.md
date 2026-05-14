@@ -25,6 +25,7 @@ Required settings:
 - Overlay edge trigger size.
 - Overlay hide delay.
 - Page load debounce duration.
+- Sidebar width.
 - Window width and height.
 - Window maximized state.
 
@@ -37,6 +38,7 @@ Default values:
 - Overlay edge trigger size: 24 px.
 - Overlay hide delay: 800 ms.
 - Page load debounce duration: 120 ms.
+- Sidebar width: 320 px.
 - Window size: 960 x 720.
 - Window maximized state: false.
 
