@@ -61,6 +61,9 @@ Each applicable entry should show a reading state icon:
 - Reading.
 - Completed.
 
+The file type icon is shown to the left of the file or folder name. Reading and completed state icons are shown at the
+right edge of the row, with the state icon taking priority over long names when space is constrained.
+
 ### File list behavior
 
 Clicking a directory:

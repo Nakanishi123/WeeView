@@ -8,6 +8,7 @@
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
+class QMouseEvent;
 class QPushButton;
 class QTimer;
 
@@ -61,8 +62,7 @@ class Sidebar final : public QWidget {
     void openPendingDirectoryClick();
     void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);
-    [[nodiscard]] QString displayPrefix(EntryType entryType, const QString &path) const;
-    [[nodiscard]] QString readingStateText(EntryType entryType, const QString &path) const;
+    [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
     [[nodiscard]] bool isResizeHandlePosition(const QPoint &position) const;
 

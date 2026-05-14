@@ -30,9 +30,14 @@ qt_add_resources(weeview "weeview_assets"
     FILES
         assets/arrow_up.svg
         assets/book.svg
+        assets/book_closed.svg
+        assets/check_circle_outside.svg
         assets/chevron_left_circle.svg
         assets/chevron_right_circle.svg
+        assets/circle.svg
+        assets/folder_closed.svg
         assets/home.svg
+        assets/postcard.svg
         assets/undo_history.svg
         assets/wrap_back.svg
         assets/wrap_forward.svg

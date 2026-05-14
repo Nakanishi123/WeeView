@@ -12,8 +12,12 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPushButton>
 #include <QSize>
+#include <QStyle>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -24,13 +28,27 @@ namespace {
 
 constexpr int entryTypeRole = Qt::UserRole;
 constexpr int entryPathRole = Qt::UserRole + 1;
+constexpr int readingStateRole = Qt::UserRole + 2;
 constexpr int folderSingleClickDelayMs = 160;
 constexpr int navigationButtonSize = 37;
 constexpr int navigationIconSize = 23;
+constexpr int entryIconSize = 20;
+constexpr int statusIconSize = 18;
+constexpr int entryHorizontalPadding = 6;
+constexpr int entryVerticalPadding = 3;
+constexpr int entryTextGap = 8;
+constexpr int statusIconReservedWidth = 24;
 constexpr int resizeHandleWidth = 8;
 constexpr int minimumSidebarWidth = 220;
 constexpr int maximumSidebarWidth = 720;
 const QColor iconColor(245, 245, 245);
+const QColor statusIconColor(210, 230, 255);
+
+enum class ReadingState {
+    Unread = 0,
+    Reading,
+    Completed,
+};
 
 QString normalizedFolderPath(const QString &folderPath) {
     const QFileInfo info(folderPath);
@@ -47,6 +65,82 @@ QPushButton *createNavigationButton(const QString &iconPath, const QString &labe
     button->setFocusPolicy(Qt::NoFocus);
     return button;
 }
+
+QIcon entryIcon(Sidebar::EntryType entryType) {
+    switch (entryType) {
+    case Sidebar::EntryType::Directory:
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+    case Sidebar::EntryType::Image:
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/postcard.svg"), iconColor, entryIconSize, 0);
+    case Sidebar::EntryType::Archive:
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/book_closed.svg"), iconColor, entryIconSize, 0);
+    }
+    return {};
+}
+
+QIcon readingStateIcon(ReadingState readingState) {
+    switch (readingState) {
+    case ReadingState::Reading:
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/circle.svg"), statusIconColor, statusIconSize, 0);
+    case ReadingState::Completed:
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/check_circle_outside.svg"), statusIconColor,
+                                    statusIconSize, 0);
+    case ReadingState::Unread:
+        return {};
+    }
+    return {};
+}
+
+class SidebarItemDelegate final : public QStyledItemDelegate {
+  public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem viewOption(option);
+        initStyleOption(&viewOption, index);
+        viewOption.text.clear();
+        viewOption.icon = {};
+
+        auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
+
+        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, entryVerticalPadding,
+                                                      -entryHorizontalPadding, -entryVerticalPadding);
+        const auto iconRect =
+            QRect(contentRect.left(), contentRect.top() + ((contentRect.height() - entryIconSize) / 2), entryIconSize,
+                  entryIconSize);
+        const auto statusRect =
+            QRect(contentRect.right() - statusIconSize + 1,
+                  contentRect.top() + ((contentRect.height() - statusIconSize) / 2), statusIconSize, statusIconSize);
+        const auto textLeft = iconRect.right() + 1 + entryTextGap;
+        const auto textRight = contentRect.right() - statusIconReservedWidth;
+        const auto textRect =
+            QRect(textLeft, contentRect.top(), std::max(0, textRight - textLeft + 1), contentRect.height());
+
+        const auto entryType = static_cast<Sidebar::EntryType>(index.data(entryTypeRole).toInt());
+        entryIcon(entryType).paint(painter, iconRect);
+
+        const auto selected = option.state.testFlag(QStyle::State_Selected);
+        painter->save();
+        painter->setPen(selected ? option.palette.highlightedText().color() : option.palette.text().color());
+        const auto elidedText =
+            option.fontMetrics.elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight, textRect.width());
+        painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, elidedText);
+        painter->restore();
+
+        const auto state = static_cast<ReadingState>(index.data(readingStateRole).toInt());
+        const auto statusIcon = readingStateIcon(state);
+        if (!statusIcon.isNull()) {
+            statusIcon.paint(painter, statusRect);
+        }
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        auto hint = QStyledItemDelegate::sizeHint(option, index);
+        hint.setHeight(hint.height() + 2);
+        return hint;
+    }
+};
 
 } // namespace
 
@@ -70,6 +164,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
     reloadButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("Reload"), this);
     fileList_ = new QListWidget(this);
+    fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
     pendingDirectoryClickTimer_ = new QTimer(this);
     pendingDirectoryClickTimer_->setSingleShot(true);
 
@@ -330,51 +425,40 @@ void Sidebar::clearPendingDirectoryClick() {
 }
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {
-    auto *item = new QListWidgetItem(displayPrefix(entryType, path) + name, fileList_);
+    auto *item = new QListWidgetItem(name, fileList_);
     item->setData(entryTypeRole, static_cast<int>(entryType));
     item->setData(entryPathRole, QFileInfo(path).absoluteFilePath());
+    item->setData(readingStateRole, readingState(entryType, path));
 
     if (entryType == EntryType::Archive && QFileInfo(path).absoluteFilePath() == currentArchivePath_) {
         item->setSelected(true);
     }
 }
 
-QString Sidebar::displayPrefix(EntryType entryType, const QString &path) const {
-    switch (entryType) {
-    case EntryType::Directory:
-        return QStringLiteral("[D] ");
-    case EntryType::Image:
-        return QStringLiteral("[I][%1] ").arg(readingStateText(entryType, path));
-    case EntryType::Archive:
-        return QStringLiteral("[Z][%1] ").arg(readingStateText(entryType, path));
-    }
-    return {};
-}
-
-QString Sidebar::readingStateText(EntryType entryType, const QString &path) const {
+int Sidebar::readingState(EntryType entryType, const QString &path) const {
     QString bookPath;
     if (entryType == EntryType::Image) {
         bookPath = QFileInfo(path).dir().absolutePath();
     } else if (entryType == EntryType::Archive) {
         bookPath = QFileInfo(path).absoluteFilePath();
     } else {
-        return QStringLiteral("U");
+        return static_cast<int>(ReadingState::Unread);
     }
 
     const auto *entry = historyEntryForPath(bookPath);
     if (entry == nullptr) {
-        return QStringLiteral("U");
+        return static_cast<int>(ReadingState::Unread);
     }
     if (entry->pageCount <= 0) {
-        return QStringLiteral("U");
+        return static_cast<int>(ReadingState::Unread);
     }
     if (entry->lastPageIndex >= entry->pageCount - 1) {
-        return QStringLiteral("C");
+        return static_cast<int>(ReadingState::Completed);
     }
     if (entry->lastPageIndex > 0) {
-        return QStringLiteral("R");
+        return static_cast<int>(ReadingState::Reading);
     }
-    return QStringLiteral("U");
+    return static_cast<int>(ReadingState::Unread);
 }
 
 const HistoryEntry *Sidebar::historyEntryForPath(const QString &bookPath) const {
