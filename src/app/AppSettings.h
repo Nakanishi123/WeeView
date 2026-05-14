@@ -15,6 +15,9 @@ struct AppSettings {
     int overlayEdgeTriggerSize = 24;
     int overlayHideDelayMs = 800;
     int pageLoadDebounceMs = 120;
+    int windowWidth = 960;
+    int windowHeight = 720;
+    bool windowMaximized = false;
 };
 
 } // namespace weeview

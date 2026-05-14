@@ -24,7 +24,6 @@ namespace weeview {
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(QStringLiteral("WeeView"));
-    resize(960, 720);
 
     overlayContainer_ = new OverlayContainer(this);
     setCentralWidget(overlayContainer_);
@@ -34,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     }
 
     appSettings_ = AppSettingsStore().load();
+    restoreWindowSettings();
     deferredPageLoadTimer_ = new QTimer(this);
     deferredPageLoadTimer_->setSingleShot(true);
     connect(deferredPageLoadTimer_, &QTimer::timeout, this, &MainWindow::executeDeferredPageLoad);
@@ -48,7 +48,31 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 void MainWindow::closeEvent(QCloseEvent *event) {
     cancelDeferredPageLoad();
     saveCurrentHistory();
+    saveAppSettings();
     QMainWindow::closeEvent(event);
+}
+
+void MainWindow::showRestored() {
+    if (appSettings_.windowMaximized) {
+        showMaximized();
+        return;
+    }
+
+    show();
+}
+
+void MainWindow::restoreWindowSettings() {
+    const auto width = std::max(320, appSettings_.windowWidth);
+    const auto height = std::max(240, appSettings_.windowHeight);
+    resize(width, height);
+}
+
+void MainWindow::saveAppSettings() {
+    const auto normalSize = normalGeometry().isValid() ? normalGeometry().size() : size();
+    appSettings_.windowWidth = std::max(320, normalSize.width());
+    appSettings_.windowHeight = std::max(240, normalSize.height());
+    appSettings_.windowMaximized = isMaximized();
+    [[maybe_unused]] const auto saved = AppSettingsStore().save(appSettings_);
 }
 
 void MainWindow::wireSidebar() {

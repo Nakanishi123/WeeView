@@ -21,11 +21,14 @@ class MainWindow final : public QMainWindow {
 
   public:
     explicit MainWindow(QWidget *parent = nullptr);
+    void showRestored();
 
   protected:
     void closeEvent(QCloseEvent *event) override;
 
   private:
+    void restoreWindowSettings();
+    void saveAppSettings();
     void wireSidebar();
     void openFolderBook(const QString &folderPath, int requestedPageIndex = 0);
     void openImageFile(const QString &filePath);

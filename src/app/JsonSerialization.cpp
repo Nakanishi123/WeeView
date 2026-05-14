@@ -13,6 +13,9 @@ constexpr auto defaultViewModeKey = "defaultViewMode";
 constexpr auto overlayEdgeTriggerSizeKey = "overlayEdgeTriggerSize";
 constexpr auto overlayHideDelayMsKey = "overlayHideDelayMs";
 constexpr auto pageLoadDebounceMsKey = "pageLoadDebounceMs";
+constexpr auto windowWidthKey = "windowWidth";
+constexpr auto windowHeightKey = "windowHeight";
+constexpr auto windowMaximizedKey = "windowMaximized";
 
 constexpr auto bookPathKey = "bookPath";
 constexpr auto bookTypeKey = "bookType";
@@ -35,6 +38,11 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return value.isDouble() ? value.toInt() : fallback;
 }
 
+bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
+    const auto value = object.value(QLatin1String(key));
+    return value.isBool() ? value.toBool() : fallback;
+}
+
 } // namespace
 
 QJsonObject toJson(const AppSettings &settings) {
@@ -46,6 +54,9 @@ QJsonObject toJson(const AppSettings &settings) {
         {QLatin1String(overlayEdgeTriggerSizeKey), settings.overlayEdgeTriggerSize},
         {QLatin1String(overlayHideDelayMsKey), settings.overlayHideDelayMs},
         {QLatin1String(pageLoadDebounceMsKey), settings.pageLoadDebounceMs},
+        {QLatin1String(windowWidthKey), settings.windowWidth},
+        {QLatin1String(windowHeightKey), settings.windowHeight},
+        {QLatin1String(windowMaximizedKey), settings.windowMaximized},
     };
 }
 
@@ -64,6 +75,9 @@ AppSettings appSettingsFromJson(const QJsonObject &object) {
     settings.overlayEdgeTriggerSize = intValue(object, overlayEdgeTriggerSizeKey, settings.overlayEdgeTriggerSize);
     settings.overlayHideDelayMs = intValue(object, overlayHideDelayMsKey, settings.overlayHideDelayMs);
     settings.pageLoadDebounceMs = intValue(object, pageLoadDebounceMsKey, settings.pageLoadDebounceMs);
+    settings.windowWidth = intValue(object, windowWidthKey, settings.windowWidth);
+    settings.windowHeight = intValue(object, windowHeightKey, settings.windowHeight);
+    settings.windowMaximized = boolValue(object, windowMaximizedKey, settings.windowMaximized);
     return settings;
 }
 

@@ -6,7 +6,7 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
 
     weeview::MainWindow window;
-    window.show();
+    window.showRestored();
 
     return app.exec();
 }

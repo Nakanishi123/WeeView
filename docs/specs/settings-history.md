@@ -25,6 +25,8 @@ Required settings:
 - Overlay edge trigger size.
 - Overlay hide delay.
 - Page load debounce duration.
+- Window width and height.
+- Window maximized state.
 
 If no home folder is configured, use the user's home directory.
 
@@ -35,11 +37,17 @@ Default values:
 - Overlay edge trigger size: 24 px.
 - Overlay hide delay: 800 ms.
 - Page load debounce duration: 120 ms.
+- Window size: 960 x 720.
+- Window maximized state: false.
 
 `pageLoadDebounceMs` configures the page image load delay after page navigation.
 
 - If `pageLoadDebounceMs > 0`, page image loading after page navigation waits for that many milliseconds without another page change.
 - If `pageLoadDebounceMs <= 0`, page image loading after page navigation happens immediately.
+
+On close, the app saves the current window maximized state and normal window size. If the app was closed while
+maximized, the next startup restores maximized state and preserves the last normal window size for later non-maximized
+use.
 
 ## History
 
