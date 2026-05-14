@@ -1,5 +1,6 @@
 #include "Sidebar.h"
 
+#include "IconUtils.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
@@ -11,6 +12,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPushButton>
+#include <QSize>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -22,10 +24,24 @@ namespace {
 constexpr int entryTypeRole = Qt::UserRole;
 constexpr int entryPathRole = Qt::UserRole + 1;
 constexpr int folderSingleClickDelayMs = 160;
+constexpr int navigationButtonSize = 37;
+constexpr int navigationIconSize = 23;
+const QColor iconColor(245, 245, 245);
 
 QString normalizedFolderPath(const QString &folderPath) {
     const QFileInfo info(folderPath);
     return info.isDir() ? info.absoluteFilePath() : QDir::homePath();
+}
+
+QPushButton *createNavigationButton(const QString &iconPath, const QString &label, QWidget *parent) {
+    auto *button = new QPushButton(parent);
+    button->setIcon(icons::tintedSvgIcon(iconPath, iconColor, navigationIconSize, 0));
+    button->setIconSize(QSize(navigationIconSize, navigationIconSize));
+    button->setToolTip(label);
+    button->setAccessibleName(label);
+    button->setFixedSize(navigationButtonSize, navigationButtonSize);
+    button->setFocusPolicy(Qt::NoFocus);
+    return button;
 }
 
 } // namespace
@@ -43,11 +59,11 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     pathLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     pathLabel_->setWordWrap(true);
 
-    homeButton_ = new QPushButton(QStringLiteral("Home"), this);
-    backButton_ = new QPushButton(QStringLiteral("Back"), this);
-    forwardButton_ = new QPushButton(QStringLiteral("Forward"), this);
-    upButton_ = new QPushButton(QStringLiteral("Up"), this);
-    reloadButton_ = new QPushButton(QStringLiteral("Reload"), this);
+    homeButton_ = createNavigationButton(QStringLiteral(":/assets/home.svg"), tr("Home"), this);
+    backButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_back.svg"), tr("Back"), this);
+    forwardButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_forward.svg"), tr("Forward"), this);
+    upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
+    reloadButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("Reload"), this);
     fileList_ = new QListWidget(this);
     pendingDirectoryClickTimer_ = new QTimer(this);
     pendingDirectoryClickTimer_->setSingleShot(true);

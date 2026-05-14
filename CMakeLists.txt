@@ -25,6 +25,18 @@ file(GLOB_RECURSE WEEVIEW_SOURCES CONFIGURE_DEPENDS
 )
 
 qt_add_executable(weeview ${WEEVIEW_SOURCES})
+qt_add_resources(weeview "weeview_assets"
+    PREFIX "/"
+    FILES
+        assets/arrow_up.svg
+        assets/book.svg
+        assets/chevron_left_circle.svg
+        assets/chevron_right_circle.svg
+        assets/home.svg
+        assets/undo_history.svg
+        assets/wrap_back.svg
+        assets/wrap_forward.svg
+)
 
 target_include_directories(weeview PRIVATE src)
 

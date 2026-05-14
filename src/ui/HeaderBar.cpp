@@ -1,11 +1,29 @@
 #include "HeaderBar.h"
 
+#include "IconUtils.h"
+
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QSize>
 #include <QSizePolicy>
 
 namespace weeview {
+namespace {
+
+constexpr int headerButtonSize = 39;
+constexpr int headerIconSize = 25;
+const QColor iconColor(245, 245, 245);
+
+void configureIconButton(QPushButton *button, const QString &label) {
+    button->setIconSize(QSize(headerIconSize, headerIconSize));
+    button->setToolTip(label);
+    button->setAccessibleName(label);
+    button->setFixedSize(headerButtonSize, headerButtonSize);
+    button->setFocusPolicy(Qt::NoFocus);
+}
+
+} // namespace
 
 HeaderBar::HeaderBar(QWidget *parent) : QWidget(parent) {
     setAutoFillBackground(true);
@@ -19,6 +37,8 @@ HeaderBar::HeaderBar(QWidget *parent) : QWidget(parent) {
 
     viewModeButton_ = new QPushButton(this);
     readingDirectionButton_ = new QPushButton(this);
+    viewModeButton_->setCheckable(true);
+    readingDirectionButton_->setCheckable(true);
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(12, 8, 12, 8);
@@ -63,9 +83,19 @@ ViewMode HeaderBar::viewMode() const { return viewMode_; }
 ReadingDirection HeaderBar::readingDirection() const { return readingDirection_; }
 
 void HeaderBar::updateButtons() {
-    viewModeButton_->setText(viewMode_ == ViewMode::SinglePage ? QStringLiteral("Single") : QStringLiteral("Spread"));
-    readingDirectionButton_->setText(readingDirection_ == ReadingDirection::RightToLeft ? QStringLiteral("RTL")
-                                                                                        : QStringLiteral("LTR"));
+    const auto viewModeLabel = viewMode_ == ViewMode::SinglePage ? tr("Single page view") : tr("Spread page view");
+    viewModeButton_->setIcon(icons::tintedSvgIcon(QStringLiteral(":/assets/book.svg"), iconColor, headerIconSize, 0));
+    viewModeButton_->setChecked(viewMode_ == ViewMode::Spread);
+    configureIconButton(viewModeButton_, viewModeLabel);
+
+    const auto readingDirectionLabel =
+        readingDirection_ == ReadingDirection::RightToLeft ? tr("Right-to-left reading") : tr("Left-to-right reading");
+    readingDirectionButton_->setIcon(icons::tintedSvgIcon(readingDirection_ == ReadingDirection::RightToLeft
+                                                              ? QStringLiteral(":/assets/chevron_left_circle.svg")
+                                                              : QStringLiteral(":/assets/chevron_right_circle.svg"),
+                                                          iconColor, headerIconSize, 0));
+    readingDirectionButton_->setChecked(readingDirection_ == ReadingDirection::LeftToRight);
+    configureIconButton(readingDirectionButton_, readingDirectionLabel);
 }
 
 void HeaderBar::toggleViewMode() {
