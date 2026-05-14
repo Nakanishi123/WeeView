@@ -3,6 +3,7 @@
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
+#include <QApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -10,13 +11,17 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace weeview {
 namespace {
 
 constexpr int entryTypeRole = Qt::UserRole;
 constexpr int entryPathRole = Qt::UserRole + 1;
+constexpr int folderSingleClickDelayMs = 160;
 
 QString normalizedFolderPath(const QString &folderPath) {
     const QFileInfo info(folderPath);
@@ -44,6 +49,8 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     upButton_ = new QPushButton(QStringLiteral("Up"), this);
     reloadButton_ = new QPushButton(QStringLiteral("Reload"), this);
     fileList_ = new QListWidget(this);
+    pendingDirectoryClickTimer_ = new QTimer(this);
+    pendingDirectoryClickTimer_->setSingleShot(true);
 
     auto *buttonLayout = new QHBoxLayout();
     buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -66,8 +73,9 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     connect(forwardButton_, &QPushButton::clicked, this, &Sidebar::navigateForward);
     connect(upButton_, &QPushButton::clicked, this, &Sidebar::navigateUp);
     connect(reloadButton_, &QPushButton::clicked, this, &Sidebar::reload);
-    connect(fileList_, &QListWidget::itemActivated, this, &Sidebar::handleItemActivated);
-    connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemActivated);
+    connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemClicked);
+    connect(fileList_, &QListWidget::itemDoubleClicked, this, &Sidebar::handleItemDoubleClicked);
+    connect(pendingDirectoryClickTimer_, &QTimer::timeout, this, &Sidebar::openPendingDirectoryClick);
 
     setHomeFolder(QDir::homePath());
 }
@@ -100,6 +108,8 @@ QString Sidebar::homeFolder() const { return homeFolder_; }
 QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
+    clearPendingDirectoryClick();
+
     const auto normalized = normalizedFolderPath(folderPath);
     if (currentFolder_ == normalized) {
         populateFileList();
@@ -188,7 +198,7 @@ void Sidebar::updateNavigationButtons() {
     upButton_->setEnabled(QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
 }
 
-void Sidebar::handleItemActivated(QListWidgetItem *item) {
+void Sidebar::handleItemClicked(QListWidgetItem *item) {
     if (item == nullptr) {
         return;
     }
@@ -198,15 +208,49 @@ void Sidebar::handleItemActivated(QListWidgetItem *item) {
 
     switch (entryType) {
     case EntryType::Directory:
-        navigateToFolder(entryPath);
+        pendingDirectoryClickPath_ = entryPath;
+        pendingDirectoryClickTimer_->start(std::min(folderSingleClickDelayMs, QApplication::doubleClickInterval()));
         break;
     case EntryType::Image:
+        clearPendingDirectoryClick();
         emit imageFileRequested(entryPath);
         break;
     case EntryType::Archive:
+        clearPendingDirectoryClick();
         emit archiveBookRequested(entryPath);
         break;
     }
+}
+
+void Sidebar::handleItemDoubleClicked(QListWidgetItem *item) {
+    if (item == nullptr) {
+        return;
+    }
+
+    const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+    if (entryType != EntryType::Directory) {
+        return;
+    }
+
+    clearPendingDirectoryClick();
+    navigateToFolder(item->data(entryPathRole).toString());
+}
+
+void Sidebar::openPendingDirectoryClick() {
+    const auto folderPath = pendingDirectoryClickPath_;
+    pendingDirectoryClickPath_.clear();
+    if (folderPath.isEmpty()) {
+        return;
+    }
+
+    emit folderBookRequested(folderPath);
+}
+
+void Sidebar::clearPendingDirectoryClick() {
+    if (pendingDirectoryClickTimer_ != nullptr) {
+        pendingDirectoryClickTimer_->stop();
+    }
+    pendingDirectoryClickPath_.clear();
 }
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {

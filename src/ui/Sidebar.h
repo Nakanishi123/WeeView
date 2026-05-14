@@ -9,6 +9,7 @@ class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
+class QTimer;
 
 namespace weeview {
 
@@ -47,7 +48,10 @@ class Sidebar final : public QWidget {
     void navigateUp();
     void populateFileList();
     void updateNavigationButtons();
-    void handleItemActivated(QListWidgetItem *item);
+    void handleItemClicked(QListWidgetItem *item);
+    void handleItemDoubleClicked(QListWidgetItem *item);
+    void openPendingDirectoryClick();
+    void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);
     [[nodiscard]] QString displayPrefix(EntryType entryType, const QString &path) const;
     [[nodiscard]] QString readingStateText(EntryType entryType, const QString &path) const;
@@ -60,10 +64,12 @@ class Sidebar final : public QWidget {
     QPushButton *upButton_ = nullptr;
     QPushButton *reloadButton_ = nullptr;
     QListWidget *fileList_ = nullptr;
+    QTimer *pendingDirectoryClickTimer_ = nullptr;
 
     QString homeFolder_;
     QString currentFolder_;
     QString currentArchivePath_;
+    QString pendingDirectoryClickPath_;
     QStringList backStack_;
     QStringList forwardStack_;
     QVector<HistoryEntry> historyEntries_;

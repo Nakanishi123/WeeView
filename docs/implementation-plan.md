@@ -224,7 +224,8 @@ Tasks:
 - Add Home/Back/Forward/Up/Reload controls.
 - Add file list.
 - Show directories, supported image files, and ZIP/CBZ files.
-- Click directories to navigate.
+- Click directories to open them as folder books.
+- Double-click directories to navigate into them.
 - Click image files to open parent folder and jump to clicked image.
 - Click ZIP/CBZ files to open archive.
 - Highlight current ZIP/CBZ when an archive is open.

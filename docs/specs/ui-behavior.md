@@ -62,7 +62,13 @@ Each applicable entry should show a reading state icon:
 
 ### File list behavior
 
-Clicking a directory changes the sidebar current directory.
+Clicking a directory:
+
+- Opens that directory as a folder book.
+- Shows supported image files in that directory as pages.
+- Ignores non-image files in that directory.
+
+Double-clicking a directory changes the sidebar current directory.
 
 Clicking a supported image file:
 
