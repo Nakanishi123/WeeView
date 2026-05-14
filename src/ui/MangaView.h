@@ -5,6 +5,7 @@
 #include <QImage>
 #include <QRectF>
 #include <QSet>
+#include <QString>
 #include <QVector>
 #include <QWidget>
 
@@ -52,6 +53,7 @@ class MangaView final : public QWidget {
   private:
     [[nodiscard]] QVector<int> displayPageIndices() const;
     [[nodiscard]] QVector<int> paintPageIndices() const;
+    [[nodiscard]] QString pendingPageWatermarkText() const;
     [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,

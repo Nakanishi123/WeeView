@@ -214,20 +214,32 @@ void MangaView::paintEvent(QPaintEvent *event) {
     if (pageIndices.size() == 1) {
         const auto &pageImage = pageImages_.at(pageIndices.first());
         painter.drawImage(fittedImageRect(rect(), pageImage), pageImage);
-        return;
+    } else {
+        const auto halfWidth = width() / 2.0;
+        const QRectF leftRect(0, 0, halfWidth, height());
+        const QRectF rightRect(halfWidth, 0, width() - halfWidth, height());
+        const auto &firstPageImage = pageImages_.at(pageIndices.at(0));
+        const auto &secondPageImage = pageImages_.at(pageIndices.at(1));
+        const auto *leftPageImage =
+            readingDirection_ == ReadingDirection::RightToLeft ? &secondPageImage : &firstPageImage;
+        const auto *rightPageImage =
+            readingDirection_ == ReadingDirection::RightToLeft ? &firstPageImage : &secondPageImage;
+
+        painter.drawImage(fittedImageRect(leftRect, *leftPageImage, Qt::AlignRight), *leftPageImage);
+        painter.drawImage(fittedImageRect(rightRect, *rightPageImage, Qt::AlignLeft), *rightPageImage);
     }
 
-    const auto halfWidth = width() / 2.0;
-    const QRectF leftRect(0, 0, halfWidth, height());
-    const QRectF rightRect(halfWidth, 0, width() - halfWidth, height());
-    const auto &firstPageImage = pageImages_.at(pageIndices.at(0));
-    const auto &secondPageImage = pageImages_.at(pageIndices.at(1));
-    const auto *leftPageImage = readingDirection_ == ReadingDirection::RightToLeft ? &secondPageImage : &firstPageImage;
-    const auto *rightPageImage =
-        readingDirection_ == ReadingDirection::RightToLeft ? &firstPageImage : &secondPageImage;
-
-    painter.drawImage(fittedImageRect(leftRect, *leftPageImage, Qt::AlignRight), *leftPageImage);
-    painter.drawImage(fittedImageRect(rightRect, *rightPageImage, Qt::AlignLeft), *rightPageImage);
+    const auto watermarkText = pendingPageWatermarkText();
+    if (!watermarkText.isEmpty()) {
+        auto watermarkFont = painter.font();
+        watermarkFont.setBold(true);
+        watermarkFont.setPixelSize(std::clamp(height() / 10, 32, 72));
+        painter.setFont(watermarkFont);
+        painter.setPen(QColor(0, 0, 0, 140));
+        painter.drawText(rect().translated(2, 2), Qt::AlignCenter, watermarkText);
+        painter.setPen(QColor(255, 255, 255, 170));
+        painter.drawText(rect(), Qt::AlignCenter, watermarkText);
+    }
 }
 
 void MangaView::keyPressEvent(QKeyEvent *event) {
@@ -304,6 +316,22 @@ QVector<int> MangaView::paintPageIndices() const {
     }
 
     return hasImagesForPages(lastPaintablePageIndices_) ? lastPaintablePageIndices_ : QVector<int>{};
+}
+
+QString MangaView::pendingPageWatermarkText() const {
+    if (currentDisplayPageIndices_.isEmpty() || hasImagesForPages(currentDisplayPageIndices_) ||
+        !hasImagesForPages(lastPaintablePageIndices_)) {
+        return {};
+    }
+
+    if (currentDisplayPageIndices_.size() == 1) {
+        return QStringLiteral("%1 / %2").arg(currentDisplayPageIndices_.first() + 1).arg(pageCount_);
+    }
+
+    return QStringLiteral("%1-%2 / %3")
+        .arg(currentDisplayPageIndices_.first() + 1)
+        .arg(currentDisplayPageIndices_.last() + 1)
+        .arg(pageCount_);
 }
 
 QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {

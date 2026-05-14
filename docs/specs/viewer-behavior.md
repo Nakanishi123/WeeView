@@ -94,6 +94,7 @@ Image loading after page navigation may be delayed by `pageLoadDebounceMs`.
 While delayed loading is pending:
 
 - The most recent successfully painted page or spread remains visible if the new target page is not loaded yet.
+- A translucent centered page indicator shows the page or spread that will be displayed after loading.
 - The final target page is loaded after navigation has been quiet for `pageLoadDebounceMs`.
 - Logical page grouping continues to use page metadata and must not shift because target images are not loaded yet.
 
