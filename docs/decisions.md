@@ -103,9 +103,10 @@ Non-UTF-8 ZIP filenames may be a known limitation in MVP.
 
 ### Cache policy
 
-MVP cache is page-count based.
+Cache eviction is memory-size based.
 
-Future cache policy may be memory-size based.
+The current display group is protected from eviction. Remaining cache memory is preferentially used for pages after the
+current display group, with about 2/3 for following pages and 1/3 for previous pages.
 
 ## 3. Deferred features
 
@@ -122,7 +123,6 @@ Potential post-MVP features:
 - Configurable landscape threshold.
 - RAR/CBR support.
 - 7z/CB7 support.
-- Memory-size based cache eviction.
 - Keybinding customization.
 - File operations such as delete/rename/move.
 - More robust ZIP filename encoding handling.

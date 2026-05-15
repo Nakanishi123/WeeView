@@ -264,13 +264,13 @@ Tasks:
 
 - Implement `ImageCache`.
 - Cache current, previous 2, and next 4 pages.
-- Limit cache to 8 pages.
+- Limit cache by decoded image memory usage.
 - Clear cache when changing books.
 
 Acceptance:
 
 - Page transitions reuse cached `QImage` where available.
-- Cache never exceeds 8 pages.
+- Cache stays within the configured memory limit except when the current display group alone exceeds it.
 
 ## Step 14: AVIF hardening
 

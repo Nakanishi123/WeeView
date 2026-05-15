@@ -272,9 +272,11 @@ Cache decoded images, not UI pixmaps.
 Initial cache window:
 
 - Current page or pages.
-- Previous 2 pages.
-- Next 4 pages.
+- Additional pages after the current display group use about 2/3 of the remaining cache memory.
+- Additional pages before the current display group use about 1/3 of the remaining cache memory.
+- If one side cannot use its share, the unused memory may be used by the other side.
 
-Maximum cache size: 8 pages.
+Maximum cache size is configured by `imageCacheMemoryLimitMiB`.
 
-The MVP cache is page-count based, not memory-size based.
+The current display group is protected from eviction. If the current page or spread exceeds the configured cache limit,
+it remains displayable and preloading is reduced or skipped.

@@ -100,8 +100,9 @@ Recommended MVP design:
 
 - Key by page index.
 - Store decoded images.
-- Keep a small LRU-style page-count limit.
-- Start with an 8-page maximum.
+- Keep a memory-size limit based on decoded image bytes.
+- Protect the current display group from eviction.
+- Use an LRU-style fallback when memory must be reclaimed.
 
 ## UI architecture
 

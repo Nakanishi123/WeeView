@@ -15,6 +15,7 @@ struct AppSettings {
     int overlayEdgeTriggerSize = 24;
     int overlayHideDelayMs = 800;
     int pageLoadDebounceMs = 120;
+    int imageCacheMemoryLimitMiB = 256;
     int sidebarWidth = 320;
     int windowWidth = 960;
     int windowHeight = 720;

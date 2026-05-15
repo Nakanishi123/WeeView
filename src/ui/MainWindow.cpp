@@ -19,8 +19,27 @@
 #include <QVector>
 
 #include <algorithm>
+#include <utility>
 
 namespace weeview {
+
+namespace {
+
+constexpr qint64 bytesPerMiB = 1024LL * 1024LL;
+constexpr qint64 decodedBytesPerPixelEstimate = 4;
+
+qint64 cacheBytesFromMiB(int mib) { return std::max<qint64>(1, mib) * bytesPerMiB; }
+
+qint64 estimatedDecodedBytes(const PageInfo &pageInfo) {
+    if (pageInfo.imageSize.isEmpty()) {
+        return 0;
+    }
+
+    return static_cast<qint64>(pageInfo.imageSize.width()) * static_cast<qint64>(pageInfo.imageSize.height()) *
+           decodedBytesPerPixelEstimate;
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(QStringLiteral("WeeView"));
@@ -33,6 +52,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     }
 
     appSettings_ = AppSettingsStore().load();
+    imageCache_.setMaxBytes(cacheBytesFromMiB(appSettings_.imageCacheMemoryLimitMiB));
     restoreWindowSettings();
     deferredPageLoadTimer_ = new QTimer(this);
     deferredPageLoadTimer_->setSingleShot(true);
@@ -236,29 +256,100 @@ void MainWindow::refreshCachedImages() {
     }
 
     auto *viewer = overlayContainer_->viewer();
-    const auto currentPageIndex = viewer->currentPageIndex();
     const auto pageCount = currentBook_->pageCount();
     if (pageCount <= 0) {
         viewer->retainPageImages({});
         return;
     }
 
-    const auto startIndex = std::max(0, currentPageIndex - 2);
-    const auto endIndex = std::min(pageCount - 1, currentPageIndex + 4);
     QSet<int> retainedPageIndices;
+    QSet<int> protectedPageIndices;
 
-    for (int index = startIndex; index <= endIndex; ++index) {
+    const auto viewerState = viewer->viewerState();
+    const auto firstDisplayPageIndex = std::clamp(viewerState.currentPageIndex, 0, pageCount - 1);
+    const auto lastDisplayPageIndex = viewer->viewMode() == ViewMode::Spread
+                                          ? std::clamp(viewerState.currentDisplayLastPageIndex, 0, pageCount - 1)
+                                          : firstDisplayPageIndex;
+    const auto displayEndPageIndex = std::max(firstDisplayPageIndex, lastDisplayPageIndex);
+
+    for (int index = firstDisplayPageIndex; index <= displayEndPageIndex; ++index) {
         loadPageIntoCache(index);
         viewer->setPageImage(index, imageCache_.image(index));
         retainedPageIndices.insert(index);
+        protectedPageIndices.insert(index);
     }
 
-    if (viewer->viewMode() == ViewMode::Spread && currentPageIndex + 1 < pageCount) {
-        loadPageIntoCache(currentPageIndex + 1);
-        viewer->setPageImage(currentPageIndex + 1, imageCache_.image(currentPageIndex + 1));
-        retainedPageIndices.insert(currentPageIndex + 1);
+    imageCache_.trimToMemoryLimit(protectedPageIndices);
+
+    auto protectedBytes = qint64{0};
+    for (const auto pageIndex : protectedPageIndices) {
+        protectedBytes += imageCache_.imageSizeInBytes(pageIndex);
     }
 
+    const auto preloadBudget = std::max<qint64>(0, imageCache_.maxBytes() - protectedBytes);
+    auto nextBudget = preloadBudget * 2 / 3;
+    auto previousBudget = preloadBudget - nextBudget;
+
+    auto tryRetainPreloadPage = [&](int pageIndex, qint64 budget) -> qint64 {
+        if (pageIndex < 0 || pageIndex >= pageCount || retainedPageIndices.contains(pageIndex) || budget <= 0) {
+            return 0;
+        }
+
+        if (!imageCache_.contains(pageIndex)) {
+            const auto estimatedBytes = estimatedDecodedBytes(currentBook_->pageInfo(pageIndex));
+            if (estimatedBytes > budget) {
+                return 0;
+            }
+            loadPageIntoCache(pageIndex);
+        }
+
+        const auto imageBytes = imageCache_.imageSizeInBytes(pageIndex);
+        if (imageBytes <= 0 || imageBytes > budget) {
+            return 0;
+        }
+
+        viewer->setPageImage(pageIndex, imageCache_.image(pageIndex));
+        retainedPageIndices.insert(pageIndex);
+        return imageBytes;
+    };
+
+    auto preloadDirection = [&](int startIndex, int step, qint64 budget) {
+        auto index = startIndex;
+        auto usedBytes = qint64{0};
+
+        while (index >= 0 && index < pageCount && usedBytes < budget) {
+            const auto usedForPage = tryRetainPreloadPage(index, budget - usedBytes);
+            if (usedForPage <= 0 && !retainedPageIndices.contains(index)) {
+                break;
+            }
+
+            usedBytes += usedForPage;
+            index += step;
+        }
+
+        return std::pair{index, usedBytes};
+    };
+
+    auto [nextIndex, usedNextBytes] = preloadDirection(displayEndPageIndex + 1, 1, nextBudget);
+    auto [previousIndex, usedPreviousBytes] = preloadDirection(firstDisplayPageIndex - 1, -1, previousBudget);
+
+    nextBudget -= usedNextBytes;
+    previousBudget -= usedPreviousBytes;
+
+    if (previousBudget > 0) {
+        auto [nextCarryIndex, usedCarryBytes] = preloadDirection(nextIndex, 1, previousBudget);
+        nextIndex = nextCarryIndex;
+        previousBudget -= usedCarryBytes;
+    }
+
+    if (nextBudget > 0) {
+        auto [previousCarryIndex, usedCarryBytes] = preloadDirection(previousIndex, -1, nextBudget);
+        previousIndex = previousCarryIndex;
+        nextBudget -= usedCarryBytes;
+    }
+
+    imageCache_.retain(retainedPageIndices);
+    imageCache_.trimToMemoryLimit(protectedPageIndices);
     viewer->retainPageImages(retainedPageIndices);
 }
 

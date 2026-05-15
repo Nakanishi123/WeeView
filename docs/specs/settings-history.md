@@ -47,6 +47,12 @@ Default values:
 - If `pageLoadDebounceMs > 0`, page image loading after page navigation waits for that many milliseconds without another page change.
 - If `pageLoadDebounceMs <= 0`, page image loading after page navigation happens immediately.
 
+`imageCacheMemoryLimitMiB` configures the decoded image cache memory limit in MiB.
+
+- Values less than 1 are treated as 1 MiB.
+- The default is 256 MiB.
+- The current display group may exceed this limit when a currently displayed image is larger than the limit.
+
 On close, the app saves the current window maximized state and normal window size. If the app was closed while
 maximized, the next startup restores maximized state and preserves the last normal window size for later non-maximized
 use.
