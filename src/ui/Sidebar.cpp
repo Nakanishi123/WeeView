@@ -50,6 +50,7 @@ constexpr int thumbnailImageRole = Qt::UserRole + 5;
 constexpr int secondaryTextRole = Qt::UserRole + 6;
 constexpr int progressTextRole = Qt::UserRole + 7;
 constexpr int folderSingleClickDelayMs = 160;
+constexpr int maxEagerHistoryThumbnails = 30;
 constexpr int navigationButtonSize = 37;
 constexpr int navigationIconSize = 23;
 constexpr int entryIconSize = 20;
@@ -620,10 +621,14 @@ void Sidebar::populateHistoryList() {
         return left.lastOpenedAt > right.lastOpenedAt;
     });
 
+    auto eagerThumbnailCount = 0;
     for (const auto &entry : entries) {
         if (!entry.bookPath.isEmpty()) {
             addHistoryEntry(entry);
-            loadHistoryThumbnailAsync(entry, requestId);
+            if (eagerThumbnailCount < maxEagerHistoryThumbnails) {
+                loadHistoryThumbnailAsync(entry, requestId);
+                ++eagerThumbnailCount;
+            }
         }
     }
 
@@ -772,7 +777,7 @@ void Sidebar::handleItemClicked(QListWidgetItem *item) {
     switch (entryType) {
     case EntryType::Directory:
         pendingDirectoryClickPath_ = entryPath;
-        pendingDirectoryClickTimer_->start(std::min(folderSingleClickDelayMs, QApplication::doubleClickInterval()));
+        pendingDirectoryClickTimer_->start(std::max(folderSingleClickDelayMs, QApplication::doubleClickInterval()));
         break;
     case EntryType::Image:
         clearPendingDirectoryClick();

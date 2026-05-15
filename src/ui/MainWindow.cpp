@@ -29,6 +29,7 @@ constexpr qint64 bytesPerMiB = 1024LL * 1024LL;
 constexpr qint64 decodedBytesPerPixelEstimate = 4;
 constexpr int metadataPagesPerBatch = 1;
 constexpr int preloadPagesPerBatch = 2;
+constexpr qsizetype maxHistoryEntries = 200;
 
 qint64 cacheBytesFromMiB(int mib) { return std::max<qint64>(1, mib) * bytesPerMiB; }
 
@@ -39,6 +40,34 @@ qint64 estimatedDecodedBytes(const PageInfo &pageInfo) {
 
     return static_cast<qint64>(pageInfo.imageSize.width()) * static_cast<qint64>(pageInfo.imageSize.height()) *
            decodedBytesPerPixelEstimate;
+}
+
+void trimHistoryEntries(QVector<HistoryEntry> &entries) {
+    std::stable_sort(entries.begin(), entries.end(), [](const HistoryEntry &left, const HistoryEntry &right) {
+        return left.lastOpenedAt > right.lastOpenedAt;
+    });
+
+    QSet<QString> seenBookPaths;
+    qsizetype writeIndex = 0;
+    for (const auto &entry : std::as_const(entries)) {
+        if (entry.bookPath.isEmpty()) {
+            continue;
+        }
+
+        const auto normalizedPath = QFileInfo(entry.bookPath).absoluteFilePath();
+        if (normalizedPath.isEmpty() || seenBookPaths.contains(normalizedPath)) {
+            continue;
+        }
+
+        seenBookPaths.insert(normalizedPath);
+        entries[writeIndex] = entry;
+        ++writeIndex;
+        if (writeIndex >= maxHistoryEntries) {
+            break;
+        }
+    }
+
+    entries.resize(writeIndex);
 }
 
 } // namespace
@@ -586,6 +615,7 @@ void MainWindow::loadPageIntoCache(int pageIndex) {
 
 void MainWindow::loadHistory() {
     historyEntries_ = historyStore_.load();
+    trimHistoryEntries(historyEntries_);
     refreshSidebarHistory();
 }
 
@@ -623,6 +653,7 @@ void MainWindow::saveCurrentHistory() {
         entry->lastOpenedAt = QDateTime::currentDateTimeUtc();
     }
 
+    trimHistoryEntries(historyEntries_);
     saveHistory();
     refreshSidebarHistory();
 }

@@ -98,7 +98,8 @@ Forward navigates to the next sidebar folder if available.
 Up navigates to the parent directory.
 
 History replaces the file list with recent books from reading history. History entries show the book name, path, reading
-progress, reading state, and an asynchronously loaded thumbnail of the book's first page.
+progress, reading state, and may show an asynchronously loaded thumbnail of the book's first page. Thumbnail loading may
+be limited to the most recent entries to avoid excessive disk and CPU work.
 
 Settings replaces the file list with controls for editable app settings. Changes are persisted to `settings.json`.
 

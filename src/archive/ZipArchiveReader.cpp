@@ -2,6 +2,7 @@
 
 #include <zip.h>
 
+#include <QFile>
 #include <algorithm>
 #include <limits>
 #include <utility>
@@ -15,7 +16,8 @@ constexpr zip_flags_t utf8NameFlags = ZIP_FL_ENC_UTF_8;
 
 ZipArchiveReader::ZipArchiveReader(QString archivePath) : archivePath_(std::move(archivePath)) {
     int errorCode = 0;
-    archive_.reset(zip_open(archivePath_.toLocal8Bit().constData(), ZIP_RDONLY, &errorCode));
+    const auto encodedArchivePath = QFile::encodeName(archivePath_);
+    archive_.reset(zip_open(encodedArchivePath.constData(), ZIP_RDONLY, &errorCode));
 }
 
 ZipArchiveReader::~ZipArchiveReader() = default;

@@ -67,6 +67,9 @@ Bookmarks are not part of MVP.
 
 History must store recent books and reading progress.
 
+History is capped to the 200 most recently opened unique book paths. If duplicate entries exist for a book path, keep
+the most recent entry.
+
 Required history fields per book:
 
 - Book path.
