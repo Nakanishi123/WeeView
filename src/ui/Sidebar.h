@@ -78,6 +78,8 @@ class Sidebar final : public QWidget {
     void addEntry(EntryType entryType, const QString &name, const QString &path);
     void addHistoryEntry(const HistoryEntry &entry);
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
+    void updateFileListReadingStates();
+    void updateArchiveSelection();
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
     void updateResizeCursor(const QPoint &position);

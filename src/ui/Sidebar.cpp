@@ -419,7 +419,7 @@ void Sidebar::setCurrentFolder(const QString &folderPath) { navigateToFolder(fol
 
 void Sidebar::setCurrentArchivePath(const QString &archivePath) {
     currentArchivePath_ = archivePath.isEmpty() ? QString() : QFileInfo(archivePath).absoluteFilePath();
-    populateFileList();
+    updateArchiveSelection();
 }
 
 void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
@@ -427,7 +427,7 @@ void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
     if (showingHistory_) {
         populateHistoryList();
     } else if (!showingSettings_) {
-        populateFileList();
+        updateFileListReadingStates();
     }
 }
 
@@ -531,7 +531,11 @@ void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
 
     const auto normalized = normalizedFolderPath(folderPath);
     if (currentFolder_ == normalized) {
-        populateFileList();
+        contentStack_->setCurrentIndex(0);
+        showingHistory_ = false;
+        showingSettings_ = false;
+        pathLabel_->setText(currentFolder_);
+        updateNavigationButtons();
         return;
     }
 
@@ -909,6 +913,40 @@ void Sidebar::loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId
         }
     });
     watcher->setFuture(QtConcurrent::run(loadFirstPageThumbnail, entry));
+}
+
+void Sidebar::updateFileListReadingStates() {
+    for (int row = 0; row < fileList_->count(); ++row) {
+        auto *item = fileList_->item(row);
+        if (item == nullptr) {
+            continue;
+        }
+        const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+        if (itemKind != SidebarItemKind::FileEntry) {
+            continue;
+        }
+
+        const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+        const auto entryPath = item->data(entryPathRole).toString();
+        item->setData(readingStateRole, readingState(entryType, entryPath));
+    }
+    fileList_->viewport()->update();
+}
+
+void Sidebar::updateArchiveSelection() {
+    const QSignalBlocker blocker(fileList_);
+    for (int row = 0; row < fileList_->count(); ++row) {
+        auto *item = fileList_->item(row);
+        if (item == nullptr) {
+            continue;
+        }
+        const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+        const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+        const auto entryPath = QFileInfo(item->data(entryPathRole).toString()).absoluteFilePath();
+        item->setSelected(itemKind == SidebarItemKind::FileEntry && entryType == EntryType::Archive &&
+                          !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
+    }
+    fileList_->viewport()->update();
 }
 
 int Sidebar::readingState(EntryType entryType, const QString &path) const {
