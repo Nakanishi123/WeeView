@@ -169,6 +169,18 @@ QIcon readingStateIcon(ReadingState readingState) {
     return {};
 }
 
+QRect visibleItemRect(const QStyleOptionViewItem &option) {
+    auto rect = option.rect;
+    if (option.widget == nullptr) {
+        return rect;
+    }
+
+    const auto viewportRect = option.widget->rect();
+    rect.setLeft(std::max(rect.left(), viewportRect.left()));
+    rect.setRight(std::min(rect.right(), viewportRect.right()));
+    return rect;
+}
+
 class SidebarItemDelegate final : public QStyledItemDelegate {
   public:
     using QStyledItemDelegate::QStyledItemDelegate;
@@ -203,8 +215,8 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
         auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
         style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
 
-        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, entryVerticalPadding,
-                                                      -entryHorizontalPadding, -entryVerticalPadding);
+        const auto contentRect = visibleItemRect(option).adjusted(entryHorizontalPadding, entryVerticalPadding,
+                                                                  -entryHorizontalPadding, -entryVerticalPadding);
         const auto iconRect =
             QRect(contentRect.left(), contentRect.top() + ((contentRect.height() - entryIconSize) / 2), entryIconSize,
                   entryIconSize);
@@ -243,7 +255,8 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
         auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
         style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
 
-        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, 8, -entryHorizontalPadding, -8);
+        const auto contentRect =
+            visibleItemRect(option).adjusted(entryHorizontalPadding, 8, -entryHorizontalPadding, -8);
         const auto thumbnailRect =
             QRect(contentRect.left(), contentRect.top(), historyThumbnailWidth, historyThumbnailHeight);
         painter->save();
@@ -334,6 +347,9 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
     fileList_ = new QListWidget(this);
     fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
+    fileList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    fileList_->setTextElideMode(Qt::ElideRight);
+    fileList_->setWordWrap(false);
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(fileList_);
 
