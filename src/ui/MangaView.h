@@ -9,6 +9,8 @@
 #include <QVector>
 #include <QWidget>
 
+class QPainter;
+
 namespace weeview {
 
 class MangaView final : public QWidget {
@@ -48,12 +50,21 @@ class MangaView final : public QWidget {
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 
   private:
+    enum class HorizontalGestureDirection {
+        None,
+        Left,
+        Right,
+    };
+
     [[nodiscard]] QVector<int> displayPageIndices() const;
     [[nodiscard]] QVector<int> paintPageIndices() const;
     [[nodiscard]] QString pendingPageWatermarkText() const;
+    [[nodiscard]] QString rightButtonGestureWatermarkText() const;
     [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,
@@ -66,11 +77,15 @@ class MangaView final : public QWidget {
     [[nodiscard]] bool isLandscapePage(int pageIndex) const;
     void setCurrentPageIndexFromGroup(QVector<int> pageIndices, int fallbackPageIndex, SpreadGroupDirection direction,
                                       int displayLastFallbackPageIndex = -1);
+    void drawPageLoadWatermark(QPainter &painter) const;
+    void drawRightButtonGestureWatermark(QPainter &painter) const;
     void refreshCurrentDisplayGroup();
     void goToFirstPage();
     void goToLastPage();
     void goToNextPage();
     void goToPreviousPage();
+    void goToNextSinglePageStep();
+    void goToPreviousSinglePageStep();
     void goToDirectionAwareLeft();
     void goToDirectionAwareRight();
 
@@ -82,6 +97,11 @@ class MangaView final : public QWidget {
     int currentDisplayLastPageIndex_ = 0;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;
+    qreal rightButtonGestureStartX_ = 0.0;
+    qreal rightButtonGestureTurnX_ = 0.0;
+    bool rightButtonPressed_ = false;
+    bool rightButtonGestureTriggered_ = false;
+    HorizontalGestureDirection rightButtonGestureDirection_ = HorizontalGestureDirection::None;
     ViewMode viewMode_ = ViewMode::SinglePage;
     ReadingDirection readingDirection_ = ReadingDirection::RightToLeft;
     SpreadGroupDirection spreadGroupDirection_ = SpreadGroupDirection::Forward;

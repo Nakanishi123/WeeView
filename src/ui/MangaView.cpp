@@ -12,6 +12,10 @@
 
 namespace weeview {
 
+namespace {
+constexpr auto RightButtonGestureThreshold = 40.0;
+}
+
 MangaView::MangaView(QWidget *parent) : QWidget(parent) {
     setAutoFillBackground(true);
     setFocusPolicy(Qt::StrongFocus);
@@ -203,13 +207,14 @@ ViewerState MangaView::viewerState() const {
 void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 
-    const auto pageIndices = paintPageIndices();
-    if (pageIndices.isEmpty()) {
-        return;
-    }
-
     QPainter painter(this);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    const auto pageIndices = paintPageIndices();
+    if (pageIndices.isEmpty()) {
+        drawRightButtonGestureWatermark(painter);
+        return;
+    }
 
     if (pageIndices.size() == 1) {
         const auto &pageImage = pageImages_.at(pageIndices.first());
@@ -229,17 +234,8 @@ void MangaView::paintEvent(QPaintEvent *event) {
         painter.drawImage(fittedImageRect(rightRect, *rightPageImage, Qt::AlignLeft), *rightPageImage);
     }
 
-    const auto watermarkText = pendingPageWatermarkText();
-    if (!watermarkText.isEmpty()) {
-        auto watermarkFont = painter.font();
-        watermarkFont.setBold(true);
-        watermarkFont.setPixelSize(std::clamp(height() / 10, 32, 72));
-        painter.setFont(watermarkFont);
-        painter.setPen(QColor(0, 0, 0, 140));
-        painter.drawText(rect().translated(2, 2), Qt::AlignCenter, watermarkText);
-        painter.setPen(QColor(255, 255, 255, 170));
-        painter.drawText(rect(), Qt::AlignCenter, watermarkText);
-    }
+    drawPageLoadWatermark(painter);
+    drawRightButtonGestureWatermark(painter);
 }
 
 void MangaView::keyPressEvent(QKeyEvent *event) {
@@ -286,8 +282,72 @@ void MangaView::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
         goToDirectionAwareLeft();
     } else {
+        rightButtonPressed_ = true;
+        rightButtonGestureTriggered_ = false;
+        rightButtonGestureDirection_ = HorizontalGestureDirection::None;
+        rightButtonGestureStartX_ = event->position().x();
+        rightButtonGestureTurnX_ = rightButtonGestureStartX_;
+        update();
+    }
+    event->accept();
+}
+
+void MangaView::mouseMoveEvent(QMouseEvent *event) {
+    if (!rightButtonPressed_ || !event->buttons().testFlag(Qt::RightButton) || rightButtonGestureTriggered_) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+
+    const auto currentX = event->position().x();
+    if (rightButtonGestureDirection_ == HorizontalGestureDirection::None) {
+        const auto deltaX = currentX - rightButtonGestureStartX_;
+        if (deltaX >= RightButtonGestureThreshold) {
+            rightButtonGestureDirection_ = HorizontalGestureDirection::Right;
+            rightButtonGestureTurnX_ = currentX;
+            update();
+        } else if (deltaX <= -RightButtonGestureThreshold) {
+            rightButtonGestureDirection_ = HorizontalGestureDirection::Left;
+            rightButtonGestureTurnX_ = currentX;
+            update();
+        }
+
+        event->accept();
+        return;
+    }
+
+    if (rightButtonGestureDirection_ == HorizontalGestureDirection::Right) {
+        rightButtonGestureTurnX_ = std::max(rightButtonGestureTurnX_, currentX);
+        if (currentX <= rightButtonGestureTurnX_ - RightButtonGestureThreshold) {
+            goToNextSinglePageStep();
+            rightButtonGestureTriggered_ = true;
+            update();
+        }
+    } else {
+        rightButtonGestureTurnX_ = std::min(rightButtonGestureTurnX_, currentX);
+        if (currentX >= rightButtonGestureTurnX_ + RightButtonGestureThreshold) {
+            goToPreviousSinglePageStep();
+            rightButtonGestureTriggered_ = true;
+            update();
+        }
+    }
+
+    event->accept();
+}
+
+void MangaView::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() != Qt::RightButton || !rightButtonPressed_) {
+        QWidget::mouseReleaseEvent(event);
+        return;
+    }
+
+    if (!rightButtonGestureTriggered_) {
         goToDirectionAwareRight();
     }
+
+    rightButtonPressed_ = false;
+    rightButtonGestureTriggered_ = false;
+    rightButtonGestureDirection_ = HorizontalGestureDirection::None;
+    update();
     event->accept();
 }
 
@@ -332,6 +392,18 @@ QString MangaView::pendingPageWatermarkText() const {
         .arg(currentDisplayPageIndices_.first() + 1)
         .arg(currentDisplayPageIndices_.last() + 1)
         .arg(pageCount_);
+}
+
+QString MangaView::rightButtonGestureWatermarkText() const {
+    if (!rightButtonPressed_) {
+        return {};
+    }
+
+    if (rightButtonGestureDirection_ == HorizontalGestureDirection::Left) {
+        return QStringLiteral("← →\n1ページ戻る");
+    }
+
+    return QStringLiteral("→ ←\n1ページ進む");
 }
 
 QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
@@ -440,6 +512,48 @@ bool MangaView::isLandscapePage(int pageIndex) const {
     return false;
 }
 
+void MangaView::drawPageLoadWatermark(QPainter &painter) const {
+    const auto watermarkText = pendingPageWatermarkText();
+    if (watermarkText.isEmpty()) {
+        return;
+    }
+
+    auto watermarkFont = painter.font();
+    watermarkFont.setBold(true);
+    watermarkFont.setPixelSize(std::clamp(height() / 10, 32, 72));
+    painter.setFont(watermarkFont);
+    painter.setPen(QColor(0, 0, 0, 140));
+    painter.drawText(rect().translated(2, 2), Qt::AlignCenter, watermarkText);
+    painter.setPen(QColor(255, 255, 255, 170));
+    painter.drawText(rect(), Qt::AlignCenter, watermarkText);
+}
+
+void MangaView::drawRightButtonGestureWatermark(QPainter &painter) const {
+    const auto watermarkText = rightButtonGestureWatermarkText();
+    if (watermarkText.isEmpty()) {
+        return;
+    }
+
+    auto gestureFont = painter.font();
+    gestureFont.setBold(true);
+    gestureFont.setPixelSize(std::clamp(height() / 18, 24, 48));
+    painter.setFont(gestureFont);
+
+    const QFontMetrics metrics(gestureFont);
+    const auto textRect = metrics.boundingRect(QRect(0, 0, width(), height()), Qt::AlignCenter, watermarkText);
+    const auto paddingX = std::clamp(width() / 20, 28, 72);
+    const auto paddingY = std::clamp(height() / 32, 20, 48);
+    auto backgroundRect = QRectF(textRect).adjusted(-paddingX, -paddingY, paddingX, paddingY);
+    backgroundRect.moveCenter(rect().center());
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 150));
+    painter.drawRoundedRect(backgroundRect, 8.0, 8.0);
+
+    painter.setPen(QColor(255, 255, 255, 210));
+    painter.drawText(backgroundRect, Qt::AlignCenter, watermarkText);
+}
+
 void MangaView::goToFirstPage() { setCurrentPageIndex(0); }
 
 void MangaView::goToLastPage() { setCurrentPageIndex(pageCount_ - 1); }
@@ -474,6 +588,20 @@ void MangaView::goToPreviousPage() {
     setCurrentPageIndexFromGroup(backwardSpreadGroup(previousPageIndex), previousPageIndex,
                                  SpreadGroupDirection::Backward);
 }
+
+void MangaView::goToNextSinglePageStep() {
+    if (viewMode_ == ViewMode::Spread && displayPageIndices().size() == 1) {
+        const auto expandedGroup = forwardSpreadGroup(currentPageIndex_);
+        if (expandedGroup.size() > displayPageIndices().size()) {
+            setCurrentPageIndexFromGroup(expandedGroup, currentPageIndex_, SpreadGroupDirection::Forward);
+            return;
+        }
+    }
+
+    setCurrentPageIndex(currentPageIndex_ + 1);
+}
+
+void MangaView::goToPreviousSinglePageStep() { setCurrentPageIndex(currentPageIndex_ - 1); }
 
 void MangaView::goToDirectionAwareLeft() {
     if (readingDirection_ == ReadingDirection::RightToLeft) {

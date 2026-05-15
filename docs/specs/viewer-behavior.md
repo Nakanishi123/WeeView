@@ -83,6 +83,18 @@ Mouse wheel navigation is independent of reading direction:
 - Wheel down: next page.
 - Wheel up: previous page.
 
+Right-button hold gestures navigate by horizontal command shape, independent of reading direction:
+
+- Right then left: advance by one logical page.
+- Left then right: go back by one logical page.
+
+In spread mode, right-button hold gestures still move by exactly one logical page. A one-page advance from a single
+portrait page first pairs it with the next portrait page when possible, such as `[1]` to `[1, 2]`, instead of skipping
+to `[2, 3]`.
+
+While the right button is held, the viewer shows a centered translucent black command watermark with translucent white
+text for the active gesture command.
+
 Mouse wheel zoom is not part of MVP.
 
 ## Page loading during rapid navigation
