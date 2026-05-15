@@ -52,7 +52,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     }
 
     appSettings_ = AppSettingsStore().load();
-    imageCache_.setMaxBytes(cacheBytesFromMiB(appSettings_.imageCacheMemoryLimitMiB));
+    applyAppSettings(appSettings_);
     restoreWindowSettings();
     deferredPageLoadTimer_ = new QTimer(this);
     deferredPageLoadTimer_->setSingleShot(true);
@@ -61,6 +61,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     overlayContainer_->sidebar()->setHomeFolder(appSettings_.homeFolder);
     overlayContainer_->sidebar()->setCurrentFolder(appSettings_.homeFolder);
     overlayContainer_->sidebar()->setSidebarWidth(appSettings_.sidebarWidth);
+    overlayContainer_->sidebar()->setAppSettings(appSettings_);
 
     loadHistory();
     wireSidebar();
@@ -97,6 +98,12 @@ void MainWindow::saveAppSettings() {
     [[maybe_unused]] const auto saved = AppSettingsStore().save(appSettings_);
 }
 
+void MainWindow::applyAppSettings(const AppSettings &settings) {
+    appSettings_ = settings;
+    imageCache_.setMaxBytes(cacheBytesFromMiB(appSettings_.imageCacheMemoryLimitMiB));
+    overlayContainer_->setOverlaySettings(appSettings_.overlayEdgeTriggerSize, appSettings_.overlayHideDelayMs);
+}
+
 void MainWindow::wireSidebar() {
     auto *sidebar = overlayContainer_->sidebar();
     connect(sidebar, &Sidebar::folderBookRequested, this,
@@ -104,6 +111,13 @@ void MainWindow::wireSidebar() {
     connect(sidebar, &Sidebar::imageFileRequested, this, &MainWindow::openImageFile);
     connect(sidebar, &Sidebar::archiveBookRequested, this, &MainWindow::openArchiveBook);
     connect(sidebar, &Sidebar::sidebarWidthChanged, this, [this](int width) { appSettings_.sidebarWidth = width; });
+    connect(sidebar, &Sidebar::appSettingsChanged, this, [this, sidebar](const AppSettings &settings) {
+        applyAppSettings(settings);
+        sidebar->setHomeFolder(appSettings_.homeFolder);
+        sidebar->setSidebarWidth(appSettings_.sidebarWidth);
+        sidebar->setAppSettings(appSettings_);
+        saveAppSettings();
+    });
 
     auto *viewer = overlayContainer_->viewer();
     connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);
@@ -126,6 +140,8 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
     ViewerState viewerState;
     viewerState.currentPageIndex = requestedPageIndex;
     viewerState.currentDisplayLastPageIndex = requestedPageIndex;
+    viewerState.viewMode = appSettings_.defaultViewMode;
+    viewerState.readingDirection = appSettings_.defaultReadingDirection;
     if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
         viewerState = {
             entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,
@@ -148,8 +164,8 @@ void MainWindow::openImageFile(const QString &filePath) {
     displayBook({
         requestedPageIndex,
         requestedPageIndex,
-        overlayContainer_->viewer()->viewMode(),
-        overlayContainer_->viewer()->readingDirection(),
+        appSettings_.defaultViewMode,
+        appSettings_.defaultReadingDirection,
         SpreadGroupDirection::Forward,
     });
 }
@@ -166,6 +182,8 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
     overlayContainer_->sidebar()->setCurrentArchivePath(archiveInfo.absoluteFilePath());
 
     ViewerState viewerState;
+    viewerState.viewMode = appSettings_.defaultViewMode;
+    viewerState.readingDirection = appSettings_.defaultReadingDirection;
     if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
         viewerState = {
             entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,

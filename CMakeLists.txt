@@ -38,6 +38,7 @@ qt_add_resources(weeview "weeview_assets"
         assets/folder_closed.svg
         assets/home.svg
         assets/postcard.svg
+        assets/settings.svg
         assets/undo_history.svg
         assets/wrap_back.svg
         assets/wrap_forward.svg

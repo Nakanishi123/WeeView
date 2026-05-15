@@ -21,6 +21,7 @@ class OverlayContainer final : public QWidget {
     [[nodiscard]] HeaderBar *headerBar() const;
     [[nodiscard]] FooterBar *footerBar() const;
     [[nodiscard]] Sidebar *sidebar() const;
+    void setOverlaySettings(int edgeTriggerSize, int hideDelayMs);
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -47,6 +48,7 @@ class OverlayContainer final : public QWidget {
     QTimer *headerHideTimer_ = nullptr;
     QTimer *footerHideTimer_ = nullptr;
     QTimer *sidebarHideTimer_ = nullptr;
+    int edgeTriggerSize_ = 24;
 };
 
 } // namespace weeview

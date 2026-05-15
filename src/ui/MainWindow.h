@@ -29,6 +29,7 @@ class MainWindow final : public QMainWindow {
   private:
     void restoreWindowSettings();
     void saveAppSettings();
+    void applyAppSettings(const AppSettings &settings);
     void wireSidebar();
     void openFolderBook(const QString &folderPath, int requestedPageIndex = 0);
     void openImageFile(const QString &filePath);

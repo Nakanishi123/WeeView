@@ -7,19 +7,27 @@
 #include "util/NaturalSort.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QFutureWatcher>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QSignalBlocker>
 #include <QSize>
+#include <QSpinBox>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
@@ -307,6 +315,9 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     setStyleSheet(QStringLiteral("Sidebar { background: rgba(28, 28, 28, 235); color: white; }"
                                  "QLabel { color: white; }"
                                  "QListWidget { background: rgba(18, 18, 18, 245); color: white; }"
+                                 "QScrollArea { background: rgba(18, 18, 18, 245); border: none; }"
+                                 "QWidget#settingsPanel { background: rgba(18, 18, 18, 245); color: white; }"
+                                 "QLineEdit, QComboBox, QSpinBox { padding: 4px; }"
                                  "QPushButton { padding: 4px 8px; }"));
 
     pathLabel_ = new QLabel(this);
@@ -319,8 +330,20 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     forwardButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_forward.svg"), tr("Forward"), this);
     upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
     historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
+    settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
     fileList_ = new QListWidget(this);
     fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
+    contentStack_ = new QStackedWidget(this);
+    contentStack_->addWidget(fileList_);
+
+    auto *settingsScrollArea = new QScrollArea(this);
+    settingsScrollArea->setWidgetResizable(true);
+    settingsPanel_ = new QWidget(settingsScrollArea);
+    settingsPanel_->setObjectName(QStringLiteral("settingsPanel"));
+    settingsScrollArea->setWidget(settingsPanel_);
+    contentStack_->addWidget(settingsScrollArea);
+    populateSettingsPanel();
+
     pendingDirectoryClickTimer_ = new QTimer(this);
     pendingDirectoryClickTimer_->setSingleShot(true);
 
@@ -332,19 +355,21 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     buttonLayout->addWidget(forwardButton_);
     buttonLayout->addWidget(upButton_);
     buttonLayout->addWidget(historyButton_);
+    buttonLayout->addWidget(settingsButton_);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(8);
     layout->addWidget(pathLabel_);
     layout->addLayout(buttonLayout);
-    layout->addWidget(fileList_, 1);
+    layout->addWidget(contentStack_, 1);
 
     connect(homeButton_, &QPushButton::clicked, this, &Sidebar::navigateHome);
     connect(backButton_, &QPushButton::clicked, this, &Sidebar::navigateBack);
     connect(forwardButton_, &QPushButton::clicked, this, &Sidebar::navigateForward);
     connect(upButton_, &QPushButton::clicked, this, &Sidebar::navigateUp);
     connect(historyButton_, &QPushButton::clicked, this, &Sidebar::showHistory);
+    connect(settingsButton_, &QPushButton::clicked, this, &Sidebar::showSettings);
     connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemClicked);
     connect(fileList_, &QListWidget::itemDoubleClicked, this, &Sidebar::handleItemDoubleClicked);
     connect(pendingDirectoryClickTimer_, &QTimer::timeout, this, &Sidebar::openPendingDirectoryClick);
@@ -370,9 +395,33 @@ void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
     historyEntries_ = historyEntries;
     if (showingHistory_) {
         populateHistoryList();
-    } else {
+    } else if (!showingSettings_) {
         populateFileList();
     }
+}
+
+void Sidebar::setAppSettings(const AppSettings &settings) {
+    appSettings_ = settings;
+    updatingSettingsControls_ = true;
+    const QSignalBlocker homeBlocker(homeFolderEdit_);
+    const QSignalBlocker readingBlocker(defaultReadingDirectionCombo_);
+    const QSignalBlocker viewModeBlocker(defaultViewModeCombo_);
+    const QSignalBlocker edgeBlocker(overlayEdgeTriggerSizeSpin_);
+    const QSignalBlocker hideBlocker(overlayHideDelaySpin_);
+    const QSignalBlocker debounceBlocker(pageLoadDebounceSpin_);
+    const QSignalBlocker cacheBlocker(imageCacheMemoryLimitSpin_);
+    const QSignalBlocker widthBlocker(sidebarWidthSpin_);
+
+    homeFolderEdit_->setText(appSettings_.homeFolder);
+    defaultReadingDirectionCombo_->setCurrentIndex(
+        appSettings_.defaultReadingDirection == ReadingDirection::RightToLeft ? 0 : 1);
+    defaultViewModeCombo_->setCurrentIndex(appSettings_.defaultViewMode == ViewMode::SinglePage ? 0 : 1);
+    overlayEdgeTriggerSizeSpin_->setValue(appSettings_.overlayEdgeTriggerSize);
+    overlayHideDelaySpin_->setValue(appSettings_.overlayHideDelayMs);
+    pageLoadDebounceSpin_->setValue(appSettings_.pageLoadDebounceMs);
+    imageCacheMemoryLimitSpin_->setValue(appSettings_.imageCacheMemoryLimitMiB);
+    sidebarWidthSpin_->setValue(appSettings_.sidebarWidth);
+    updatingSettingsControls_ = false;
 }
 
 void Sidebar::setSidebarWidth(int width) {
@@ -382,6 +431,10 @@ void Sidebar::setSidebarWidth(int width) {
     }
 
     setFixedWidth(clampedWidth);
+    if (sidebarWidthSpin_ != nullptr && sidebarWidthSpin_->value() != clampedWidth) {
+        const QSignalBlocker blocker(sidebarWidthSpin_);
+        sidebarWidthSpin_->setValue(clampedWidth);
+    }
     emit sidebarWidthChanged(clampedWidth);
 }
 
@@ -439,6 +492,7 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     clearPendingDirectoryClick();
     showingHistory_ = false;
+    showingSettings_ = false;
     ++historyThumbnailGeneration_;
 
     const auto normalized = normalizedFolderPath(folderPath);
@@ -499,9 +553,26 @@ void Sidebar::showHistory() {
     populateHistoryList();
 }
 
+void Sidebar::showSettings() {
+    if (showingSettings_) {
+        populateFileList();
+        return;
+    }
+
+    clearPendingDirectoryClick();
+    showingHistory_ = false;
+    showingSettings_ = true;
+    ++historyThumbnailGeneration_;
+    pathLabel_->setText(tr("Settings"));
+    contentStack_->setCurrentIndex(1);
+    updateNavigationButtons();
+}
+
 void Sidebar::populateFileList() {
     showingHistory_ = false;
+    showingSettings_ = false;
     ++historyThumbnailGeneration_;
+    contentStack_->setCurrentIndex(0);
     fileList_->clear();
     pathLabel_->setText(currentFolder_);
 
@@ -538,7 +609,9 @@ void Sidebar::populateFileList() {
 void Sidebar::populateHistoryList() {
     clearPendingDirectoryClick();
     showingHistory_ = true;
+    showingSettings_ = false;
     const auto requestId = ++historyThumbnailGeneration_;
+    contentStack_->setCurrentIndex(0);
     fileList_->clear();
     pathLabel_->setText(tr("History"));
 
@@ -557,10 +630,122 @@ void Sidebar::populateHistoryList() {
     updateNavigationButtons();
 }
 
+void Sidebar::populateSettingsPanel() {
+    auto *layout = new QVBoxLayout(settingsPanel_);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(12);
+
+    auto *formLayout = new QFormLayout();
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    formLayout->setLabelAlignment(Qt::AlignLeft);
+    formLayout->setFormAlignment(Qt::AlignTop);
+    formLayout->setSpacing(8);
+
+    auto *homeFolderRow = new QWidget(settingsPanel_);
+    auto *homeFolderLayout = new QHBoxLayout(homeFolderRow);
+    homeFolderLayout->setContentsMargins(0, 0, 0, 0);
+    homeFolderLayout->setSpacing(6);
+    homeFolderEdit_ = new QLineEdit(homeFolderRow);
+    auto *browseButton = new QPushButton(tr("Browse"), homeFolderRow);
+    homeFolderLayout->addWidget(homeFolderEdit_, 1);
+    homeFolderLayout->addWidget(browseButton);
+    formLayout->addRow(tr("Home folder"), homeFolderRow);
+
+    defaultReadingDirectionCombo_ = new QComboBox(settingsPanel_);
+    defaultReadingDirectionCombo_->addItem(tr("Right to left"), static_cast<int>(ReadingDirection::RightToLeft));
+    defaultReadingDirectionCombo_->addItem(tr("Left to right"), static_cast<int>(ReadingDirection::LeftToRight));
+    formLayout->addRow(tr("Default direction"), defaultReadingDirectionCombo_);
+
+    defaultViewModeCombo_ = new QComboBox(settingsPanel_);
+    defaultViewModeCombo_->addItem(tr("Single page"), static_cast<int>(ViewMode::SinglePage));
+    defaultViewModeCombo_->addItem(tr("Spread"), static_cast<int>(ViewMode::Spread));
+    formLayout->addRow(tr("Default view"), defaultViewModeCombo_);
+
+    overlayEdgeTriggerSizeSpin_ = new QSpinBox(settingsPanel_);
+    overlayEdgeTriggerSizeSpin_->setRange(1, 128);
+    overlayEdgeTriggerSizeSpin_->setSuffix(tr(" px"));
+    formLayout->addRow(tr("Edge trigger"), overlayEdgeTriggerSizeSpin_);
+
+    overlayHideDelaySpin_ = new QSpinBox(settingsPanel_);
+    overlayHideDelaySpin_->setRange(0, 5000);
+    overlayHideDelaySpin_->setSingleStep(50);
+    overlayHideDelaySpin_->setSuffix(tr(" ms"));
+    formLayout->addRow(tr("Hide delay"), overlayHideDelaySpin_);
+
+    pageLoadDebounceSpin_ = new QSpinBox(settingsPanel_);
+    pageLoadDebounceSpin_->setRange(0, 2000);
+    pageLoadDebounceSpin_->setSingleStep(10);
+    pageLoadDebounceSpin_->setSuffix(tr(" ms"));
+    formLayout->addRow(tr("Page load delay"), pageLoadDebounceSpin_);
+
+    imageCacheMemoryLimitSpin_ = new QSpinBox(settingsPanel_);
+    imageCacheMemoryLimitSpin_->setRange(1, 4096);
+    imageCacheMemoryLimitSpin_->setSuffix(tr(" MiB"));
+    formLayout->addRow(tr("Image cache"), imageCacheMemoryLimitSpin_);
+
+    sidebarWidthSpin_ = new QSpinBox(settingsPanel_);
+    sidebarWidthSpin_->setRange(minimumSidebarWidth, maximumSidebarWidth);
+    sidebarWidthSpin_->setSuffix(tr(" px"));
+    formLayout->addRow(tr("Sidebar width"), sidebarWidthSpin_);
+
+    layout->addLayout(formLayout);
+    layout->addStretch(1);
+
+    connect(browseButton, &QPushButton::clicked, this, &Sidebar::browseHomeFolder);
+    connect(homeFolderEdit_, &QLineEdit::editingFinished, this, &Sidebar::emitSettingsChanged);
+    connect(defaultReadingDirectionCombo_, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            &Sidebar::emitSettingsChanged);
+    connect(defaultViewModeCombo_, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            &Sidebar::emitSettingsChanged);
+    connect(overlayEdgeTriggerSizeSpin_, qOverload<int>(&QSpinBox::valueChanged), this, &Sidebar::emitSettingsChanged);
+    connect(overlayHideDelaySpin_, qOverload<int>(&QSpinBox::valueChanged), this, &Sidebar::emitSettingsChanged);
+    connect(pageLoadDebounceSpin_, qOverload<int>(&QSpinBox::valueChanged), this, &Sidebar::emitSettingsChanged);
+    connect(imageCacheMemoryLimitSpin_, qOverload<int>(&QSpinBox::valueChanged), this, &Sidebar::emitSettingsChanged);
+    connect(sidebarWidthSpin_, qOverload<int>(&QSpinBox::valueChanged), this, &Sidebar::emitSettingsChanged);
+
+    setAppSettings(appSettings_);
+}
+
+void Sidebar::emitSettingsChanged() {
+    if (updatingSettingsControls_) {
+        return;
+    }
+
+    const auto requestedHomeFolder = homeFolderEdit_->text().trimmed();
+    appSettings_.homeFolder =
+        QFileInfo(requestedHomeFolder).isDir() ? QFileInfo(requestedHomeFolder).absoluteFilePath() : QDir::homePath();
+    appSettings_.defaultReadingDirection =
+        defaultReadingDirectionCombo_->currentData().toInt() == static_cast<int>(ReadingDirection::RightToLeft)
+            ? ReadingDirection::RightToLeft
+            : ReadingDirection::LeftToRight;
+    appSettings_.defaultViewMode =
+        defaultViewModeCombo_->currentData().toInt() == static_cast<int>(ViewMode::SinglePage) ? ViewMode::SinglePage
+                                                                                               : ViewMode::Spread;
+    appSettings_.overlayEdgeTriggerSize = overlayEdgeTriggerSizeSpin_->value();
+    appSettings_.overlayHideDelayMs = overlayHideDelaySpin_->value();
+    appSettings_.pageLoadDebounceMs = pageLoadDebounceSpin_->value();
+    appSettings_.imageCacheMemoryLimitMiB = imageCacheMemoryLimitSpin_->value();
+    appSettings_.sidebarWidth = sidebarWidthSpin_->value();
+
+    emit appSettingsChanged(appSettings_);
+}
+
+void Sidebar::browseHomeFolder() {
+    const auto selectedFolder =
+        QFileDialog::getExistingDirectory(this, tr("Select home folder"), homeFolderEdit_->text());
+    if (selectedFolder.isEmpty()) {
+        return;
+    }
+
+    homeFolderEdit_->setText(QFileInfo(selectedFolder).absoluteFilePath());
+    emitSettingsChanged();
+}
+
 void Sidebar::updateNavigationButtons() {
-    backButton_->setEnabled(!showingHistory_ && !backStack_.isEmpty());
-    forwardButton_->setEnabled(!showingHistory_ && !forwardStack_.isEmpty());
-    upButton_->setEnabled(!showingHistory_ && QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
+    const auto showingAlternateView = showingHistory_ || showingSettings_;
+    backButton_->setEnabled(!showingAlternateView && !backStack_.isEmpty());
+    forwardButton_->setEnabled(!showingAlternateView && !forwardStack_.isEmpty());
+    upButton_->setEnabled(!showingAlternateView && QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
 }
 
 void Sidebar::handleItemClicked(QListWidgetItem *item) {

@@ -64,6 +64,7 @@ Included:
 - Basic decoded image cache.
 - JSON settings.
 - JSON history and reading progress.
+- Sidebar settings panel.
 
 Excluded:
 
@@ -74,7 +75,6 @@ Excluded:
 - Bookmarks.
 - File delete/rename/move.
 - Archive editing or extraction UI.
-- Settings screen.
 
 ## Core behavioral invariants
 

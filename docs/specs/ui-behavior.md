@@ -45,6 +45,7 @@ The sidebar must include:
 - Forward button.
 - Up directory button.
 - History button.
+- Settings button.
 - File list.
 
 ### File list entries
@@ -99,6 +100,8 @@ Up navigates to the parent directory.
 History replaces the file list with recent books from reading history. History entries show the book name, path, reading
 progress, reading state, and an asynchronously loaded thumbnail of the book's first page.
 
+Settings replaces the file list with controls for editable app settings. Changes are persisted to `settings.json`.
+
 ## Header overlay
 
 Header is included in MVP.
@@ -115,7 +118,7 @@ Required contents:
 - Single-page/spread toggle button.
 - Right-to-left/left-to-right toggle button.
 
-Settings button is not required in MVP.
+Settings button is not required in the header.
 
 ## Footer overlay
 
