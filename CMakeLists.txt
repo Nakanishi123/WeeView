@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Concurrent Widgets)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
@@ -47,6 +47,7 @@ target_include_directories(weeview PRIVATE src)
 
 target_link_libraries(weeview
     PRIVATE
+        Qt6::Concurrent
         Qt6::Widgets
         PkgConfig::LIBZIP
 )

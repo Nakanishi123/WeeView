@@ -44,7 +44,7 @@ The sidebar must include:
 - Back button.
 - Forward button.
 - Up directory button.
-- Reload button.
+- History button.
 - File list.
 
 ### File list entries
@@ -96,7 +96,8 @@ Forward navigates to the next sidebar folder if available.
 
 Up navigates to the parent directory.
 
-Reload rescans the current directory.
+History replaces the file list with recent books from reading history. History entries show the book name, path, reading
+progress, reading state, and an asynchronously loaded thumbnail of the book's first page.
 
 ## Header overlay
 

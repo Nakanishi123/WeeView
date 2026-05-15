@@ -31,7 +31,6 @@ class Sidebar final : public QWidget {
     void setCurrentArchivePath(const QString &archivePath);
     void setHistoryEntries(const QVector<HistoryEntry> &historyEntries);
     void setSidebarWidth(int width);
-    void reload();
 
     [[nodiscard]] QString currentFolder() const;
     [[nodiscard]] QString homeFolder() const;
@@ -55,13 +54,17 @@ class Sidebar final : public QWidget {
     void navigateBack();
     void navigateForward();
     void navigateUp();
+    void showHistory();
     void populateFileList();
+    void populateHistoryList();
     void updateNavigationButtons();
     void handleItemClicked(QListWidgetItem *item);
     void handleItemDoubleClicked(QListWidgetItem *item);
     void openPendingDirectoryClick();
     void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);
+    void addHistoryEntry(const HistoryEntry &entry);
+    void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
     [[nodiscard]] bool isResizeHandlePosition(const QPoint &position) const;
@@ -71,7 +74,7 @@ class Sidebar final : public QWidget {
     QPushButton *backButton_ = nullptr;
     QPushButton *forwardButton_ = nullptr;
     QPushButton *upButton_ = nullptr;
-    QPushButton *reloadButton_ = nullptr;
+    QPushButton *historyButton_ = nullptr;
     QListWidget *fileList_ = nullptr;
     QTimer *pendingDirectoryClickTimer_ = nullptr;
 
@@ -82,6 +85,8 @@ class Sidebar final : public QWidget {
     QStringList backStack_;
     QStringList forwardStack_;
     QVector<HistoryEntry> historyEntries_;
+    bool showingHistory_ = false;
+    int historyThumbnailGeneration_ = 0;
     bool resizing_ = false;
     int resizeStartGlobalX_ = 0;
     int resizeStartWidth_ = 0;

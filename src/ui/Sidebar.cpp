@@ -1,18 +1,23 @@
 #include "Sidebar.h"
 
 #include "IconUtils.h"
+#include "model/FolderBook.h"
+#include "model/ZipBook.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
 #include <QApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
 #include <QSize>
 #include <QStyle>
@@ -20,8 +25,10 @@
 #include <QStyledItemDelegate>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QtConcurrent>
 
 #include <algorithm>
+#include <memory>
 
 namespace weeview {
 namespace {
@@ -29,11 +36,21 @@ namespace {
 constexpr int entryTypeRole = Qt::UserRole;
 constexpr int entryPathRole = Qt::UserRole + 1;
 constexpr int readingStateRole = Qt::UserRole + 2;
+constexpr int itemKindRole = Qt::UserRole + 3;
+constexpr int bookTypeRole = Qt::UserRole + 4;
+constexpr int thumbnailImageRole = Qt::UserRole + 5;
+constexpr int secondaryTextRole = Qt::UserRole + 6;
+constexpr int progressTextRole = Qt::UserRole + 7;
 constexpr int folderSingleClickDelayMs = 160;
 constexpr int navigationButtonSize = 37;
 constexpr int navigationIconSize = 23;
 constexpr int entryIconSize = 20;
 constexpr int statusIconSize = 18;
+constexpr int historyThumbnailWidth = 54;
+constexpr int historyThumbnailHeight = 78;
+constexpr int historyThumbnailLoadWidth = 108;
+constexpr int historyThumbnailLoadHeight = 156;
+constexpr int historyRowHeight = 94;
 constexpr int entryHorizontalPadding = 6;
 constexpr int entryVerticalPadding = 3;
 constexpr int entryTextGap = 8;
@@ -48,6 +65,11 @@ enum class ReadingState {
     Unread = 0,
     Reading,
     Completed,
+};
+
+enum class SidebarItemKind {
+    FileEntry = 0,
+    HistoryEntry,
 };
 
 QString normalizedFolderPath(const QString &folderPath) {
@@ -66,6 +88,46 @@ QPushButton *createNavigationButton(const QString &iconPath, const QString &labe
     return button;
 }
 
+QString progressText(const HistoryEntry &entry) {
+    if (entry.pageCount <= 0) {
+        return {};
+    }
+    return QStringLiteral("%1 / %2").arg(std::min(entry.lastPageIndex + 1, entry.pageCount)).arg(entry.pageCount);
+}
+
+ReadingState readingStateForHistoryEntry(const HistoryEntry &entry) {
+    if (entry.pageCount <= 0) {
+        return ReadingState::Unread;
+    }
+    if (entry.lastPageIndex >= entry.pageCount - 1) {
+        return ReadingState::Completed;
+    }
+    if (entry.lastPageIndex > 0) {
+        return ReadingState::Reading;
+    }
+    return ReadingState::Unread;
+}
+
+QImage loadFirstPageThumbnail(HistoryEntry entry) {
+    std::unique_ptr<Book> book;
+    if (entry.bookType == BookType::Folder) {
+        book = std::make_unique<FolderBook>(entry.bookPath);
+    } else {
+        book = std::make_unique<ZipBook>(entry.bookPath);
+    }
+
+    if (!book || book->pageCount() <= 0) {
+        return {};
+    }
+
+    const auto image = book->loadPage(0);
+    if (image.isNull()) {
+        return {};
+    }
+    return image.scaled(historyThumbnailLoadWidth, historyThumbnailLoadHeight, Qt::KeepAspectRatio,
+                        Qt::SmoothTransformation);
+}
+
 QIcon entryIcon(Sidebar::EntryType entryType) {
     switch (entryType) {
     case Sidebar::EntryType::Directory:
@@ -76,6 +138,13 @@ QIcon entryIcon(Sidebar::EntryType entryType) {
         return icons::tintedSvgIcon(QStringLiteral(":/assets/book_closed.svg"), iconColor, entryIconSize, 0);
     }
     return {};
+}
+
+QIcon bookTypeIcon(BookType bookType) {
+    if (bookType == BookType::Folder) {
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+    }
+    return icons::tintedSvgIcon(QStringLiteral(":/assets/book_closed.svg"), iconColor, entryIconSize, 0);
 }
 
 QIcon readingStateIcon(ReadingState readingState) {
@@ -96,6 +165,27 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
     using QStyledItemDelegate::QStyledItemDelegate;
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        const auto itemKind = static_cast<SidebarItemKind>(index.data(itemKindRole).toInt());
+        if (itemKind == SidebarItemKind::HistoryEntry) {
+            paintHistoryItem(painter, option, index);
+            return;
+        }
+        paintFileItem(painter, option, index);
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        auto hint = QStyledItemDelegate::sizeHint(option, index);
+        const auto itemKind = static_cast<SidebarItemKind>(index.data(itemKindRole).toInt());
+        if (itemKind == SidebarItemKind::HistoryEntry) {
+            hint.setHeight(historyRowHeight);
+            return hint;
+        }
+        hint.setHeight(hint.height() + 2);
+        return hint;
+    }
+
+  private:
+    void paintFileItem(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
         QStyleOptionViewItem viewOption(option);
         initStyleOption(&viewOption, index);
         viewOption.text.clear();
@@ -135,10 +225,76 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
         }
     }
 
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
-        auto hint = QStyledItemDelegate::sizeHint(option, index);
-        hint.setHeight(hint.height() + 2);
-        return hint;
+    void paintHistoryItem(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
+        QStyleOptionViewItem viewOption(option);
+        initStyleOption(&viewOption, index);
+        viewOption.text.clear();
+        viewOption.icon = {};
+
+        auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
+
+        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, 8, -entryHorizontalPadding, -8);
+        const auto thumbnailRect =
+            QRect(contentRect.left(), contentRect.top(), historyThumbnailWidth, historyThumbnailHeight);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->fillRect(thumbnailRect, QColor(34, 34, 34));
+        painter->setPen(QColor(75, 75, 75));
+        painter->drawRect(thumbnailRect.adjusted(0, 0, -1, -1));
+
+        const auto thumbnail = index.data(thumbnailImageRole).value<QImage>();
+        if (!thumbnail.isNull()) {
+            const auto pixmap = QPixmap::fromImage(thumbnail);
+            const auto scaled = pixmap.scaled(thumbnailRect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            const auto target = QRect(thumbnailRect.left() + ((thumbnailRect.width() - scaled.width()) / 2),
+                                      thumbnailRect.top() + ((thumbnailRect.height() - scaled.height()) / 2),
+                                      scaled.width(), scaled.height());
+            painter->drawPixmap(target, scaled);
+        } else {
+            const auto bookType = static_cast<BookType>(index.data(bookTypeRole).toInt());
+            const auto placeholderSize = 28;
+            const auto placeholderRect = QRect(thumbnailRect.left() + ((thumbnailRect.width() - placeholderSize) / 2),
+                                               thumbnailRect.top() + ((thumbnailRect.height() - placeholderSize) / 2),
+                                               placeholderSize, placeholderSize);
+            bookTypeIcon(bookType).paint(painter, placeholderRect);
+        }
+        painter->restore();
+
+        const auto statusRect =
+            QRect(contentRect.right() - statusIconSize + 1,
+                  contentRect.top() + ((contentRect.height() - statusIconSize) / 2), statusIconSize, statusIconSize);
+        const auto textLeft = thumbnailRect.right() + 1 + entryTextGap;
+        const auto textRight = contentRect.right() - statusIconReservedWidth;
+        const auto textWidth = std::max(0, textRight - textLeft + 1);
+        const auto selected = option.state.testFlag(QStyle::State_Selected);
+        const auto primaryColor = selected ? option.palette.highlightedText().color() : option.palette.text().color();
+        const auto secondaryColor = selected ? option.palette.highlightedText().color() : QColor(185, 185, 185);
+
+        painter->save();
+        painter->setPen(primaryColor);
+        const auto titleRect = QRect(textLeft, contentRect.top() + 4, textWidth, 24);
+        painter->drawText(
+            titleRect, Qt::AlignVCenter | Qt::AlignLeft,
+            option.fontMetrics.elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight, titleRect.width()));
+
+        painter->setPen(secondaryColor);
+        const auto pathRect = QRect(textLeft, titleRect.bottom() + 3, textWidth, 20);
+        painter->drawText(
+            pathRect, Qt::AlignVCenter | Qt::AlignLeft,
+            option.fontMetrics.elidedText(index.data(secondaryTextRole).toString(), Qt::ElideRight, pathRect.width()));
+
+        const auto progressRect = QRect(textLeft, pathRect.bottom() + 3, textWidth, 18);
+        painter->drawText(progressRect, Qt::AlignVCenter | Qt::AlignLeft,
+                          option.fontMetrics.elidedText(index.data(progressTextRole).toString(), Qt::ElideRight,
+                                                        progressRect.width()));
+        painter->restore();
+
+        const auto state = static_cast<ReadingState>(index.data(readingStateRole).toInt());
+        const auto statusIcon = readingStateIcon(state);
+        if (!statusIcon.isNull()) {
+            statusIcon.paint(painter, statusRect);
+        }
     }
 };
 
@@ -162,7 +318,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     backButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_back.svg"), tr("Back"), this);
     forwardButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_forward.svg"), tr("Forward"), this);
     upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
-    reloadButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("Reload"), this);
+    historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
     fileList_ = new QListWidget(this);
     fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
     pendingDirectoryClickTimer_ = new QTimer(this);
@@ -175,7 +331,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     buttonLayout->addWidget(backButton_);
     buttonLayout->addWidget(forwardButton_);
     buttonLayout->addWidget(upButton_);
-    buttonLayout->addWidget(reloadButton_);
+    buttonLayout->addWidget(historyButton_);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(10, 10, 10, 10);
@@ -188,7 +344,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     connect(backButton_, &QPushButton::clicked, this, &Sidebar::navigateBack);
     connect(forwardButton_, &QPushButton::clicked, this, &Sidebar::navigateForward);
     connect(upButton_, &QPushButton::clicked, this, &Sidebar::navigateUp);
-    connect(reloadButton_, &QPushButton::clicked, this, &Sidebar::reload);
+    connect(historyButton_, &QPushButton::clicked, this, &Sidebar::showHistory);
     connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemClicked);
     connect(fileList_, &QListWidget::itemDoubleClicked, this, &Sidebar::handleItemDoubleClicked);
     connect(pendingDirectoryClickTimer_, &QTimer::timeout, this, &Sidebar::openPendingDirectoryClick);
@@ -212,7 +368,11 @@ void Sidebar::setCurrentArchivePath(const QString &archivePath) {
 
 void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
     historyEntries_ = historyEntries;
-    populateFileList();
+    if (showingHistory_) {
+        populateHistoryList();
+    } else {
+        populateFileList();
+    }
 }
 
 void Sidebar::setSidebarWidth(int width) {
@@ -224,8 +384,6 @@ void Sidebar::setSidebarWidth(int width) {
     setFixedWidth(clampedWidth);
     emit sidebarWidthChanged(clampedWidth);
 }
-
-void Sidebar::reload() { populateFileList(); }
 
 QString Sidebar::currentFolder() const { return currentFolder_; }
 
@@ -280,6 +438,8 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
 
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     clearPendingDirectoryClick();
+    showingHistory_ = false;
+    ++historyThumbnailGeneration_;
 
     const auto normalized = normalizedFolderPath(folderPath);
     if (currentFolder_ == normalized) {
@@ -330,8 +490,20 @@ void Sidebar::navigateUp() {
     navigateToFolder(parentPath);
 }
 
+void Sidebar::showHistory() {
+    if (showingHistory_) {
+        populateFileList();
+        return;
+    }
+
+    populateHistoryList();
+}
+
 void Sidebar::populateFileList() {
+    showingHistory_ = false;
+    ++historyThumbnailGeneration_;
     fileList_->clear();
+    pathLabel_->setText(currentFolder_);
 
     const QDir directory(currentFolder_);
     const auto entries =
@@ -363,10 +535,32 @@ void Sidebar::populateFileList() {
     updateNavigationButtons();
 }
 
+void Sidebar::populateHistoryList() {
+    clearPendingDirectoryClick();
+    showingHistory_ = true;
+    const auto requestId = ++historyThumbnailGeneration_;
+    fileList_->clear();
+    pathLabel_->setText(tr("History"));
+
+    auto entries = historyEntries_;
+    std::sort(entries.begin(), entries.end(), [](const HistoryEntry &left, const HistoryEntry &right) {
+        return left.lastOpenedAt > right.lastOpenedAt;
+    });
+
+    for (const auto &entry : entries) {
+        if (!entry.bookPath.isEmpty()) {
+            addHistoryEntry(entry);
+            loadHistoryThumbnailAsync(entry, requestId);
+        }
+    }
+
+    updateNavigationButtons();
+}
+
 void Sidebar::updateNavigationButtons() {
-    backButton_->setEnabled(!backStack_.isEmpty());
-    forwardButton_->setEnabled(!forwardStack_.isEmpty());
-    upButton_->setEnabled(QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
+    backButton_->setEnabled(!showingHistory_ && !backStack_.isEmpty());
+    forwardButton_->setEnabled(!showingHistory_ && !forwardStack_.isEmpty());
+    upButton_->setEnabled(!showingHistory_ && QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
 }
 
 void Sidebar::handleItemClicked(QListWidgetItem *item) {
@@ -376,6 +570,19 @@ void Sidebar::handleItemClicked(QListWidgetItem *item) {
 
     const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
     const auto entryPath = item->data(entryPathRole).toString();
+    const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+
+    if (itemKind == SidebarItemKind::HistoryEntry) {
+        clearPendingDirectoryClick();
+        const auto bookType = static_cast<BookType>(item->data(bookTypeRole).toInt());
+        if (bookType == BookType::Folder) {
+            setCurrentFolder(entryPath);
+            emit folderBookRequested(entryPath);
+        } else {
+            emit archiveBookRequested(entryPath);
+        }
+        return;
+    }
 
     switch (entryType) {
     case EntryType::Directory:
@@ -399,6 +606,10 @@ void Sidebar::handleItemDoubleClicked(QListWidgetItem *item) {
     }
 
     const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+    const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+    if (itemKind == SidebarItemKind::HistoryEntry) {
+        return;
+    }
     if (entryType != EntryType::Directory) {
         return;
     }
@@ -426,6 +637,7 @@ void Sidebar::clearPendingDirectoryClick() {
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {
     auto *item = new QListWidgetItem(name, fileList_);
+    item->setData(itemKindRole, static_cast<int>(SidebarItemKind::FileEntry));
     item->setData(entryTypeRole, static_cast<int>(entryType));
     item->setData(entryPathRole, QFileInfo(path).absoluteFilePath());
     item->setData(readingStateRole, readingState(entryType, path));
@@ -433,6 +645,47 @@ void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &
     if (entryType == EntryType::Archive && QFileInfo(path).absoluteFilePath() == currentArchivePath_) {
         item->setSelected(true);
     }
+}
+
+void Sidebar::addHistoryEntry(const HistoryEntry &entry) {
+    auto *item = new QListWidgetItem(
+        entry.displayName.isEmpty() ? QFileInfo(entry.bookPath).fileName() : entry.displayName, fileList_);
+    item->setData(itemKindRole, static_cast<int>(SidebarItemKind::HistoryEntry));
+    item->setData(entryTypeRole,
+                  static_cast<int>(entry.bookType == BookType::Folder ? EntryType::Directory : EntryType::Archive));
+    item->setData(entryPathRole, QFileInfo(entry.bookPath).absoluteFilePath());
+    item->setData(bookTypeRole, static_cast<int>(entry.bookType));
+    item->setData(readingStateRole, static_cast<int>(readingStateForHistoryEntry(entry)));
+    item->setData(secondaryTextRole, QFileInfo(entry.bookPath).absoluteFilePath());
+    item->setData(progressTextRole, progressText(entry));
+}
+
+void Sidebar::loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId) {
+    auto *watcher = new QFutureWatcher<QImage>(this);
+    connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, requestId, bookPath = entry.bookPath] {
+        const auto image = watcher->result();
+        watcher->deleteLater();
+
+        if (requestId != historyThumbnailGeneration_ || !showingHistory_ || image.isNull()) {
+            return;
+        }
+
+        const auto normalizedPath = QFileInfo(bookPath).absoluteFilePath();
+        for (int row = 0; row < fileList_->count(); ++row) {
+            auto *item = fileList_->item(row);
+            if (item == nullptr) {
+                continue;
+            }
+            const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+            if (itemKind == SidebarItemKind::HistoryEntry &&
+                QFileInfo(item->data(entryPathRole).toString()).absoluteFilePath() == normalizedPath) {
+                item->setData(thumbnailImageRole, image);
+                fileList_->update(fileList_->model()->index(row, 0));
+                return;
+            }
+        }
+    });
+    watcher->setFuture(QtConcurrent::run(loadFirstPageThumbnail, entry));
 }
 
 int Sidebar::readingState(EntryType entryType, const QString &path) const {
