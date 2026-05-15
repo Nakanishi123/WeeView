@@ -8,7 +8,9 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCursor>
 #include <QDir>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -36,6 +38,7 @@
 #include <QtConcurrent>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 
 namespace weeview {
@@ -346,6 +349,8 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
     settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
     fileList_ = new QListWidget(this);
+    fileList_->setMouseTracking(true);
+    fileList_->viewport()->setMouseTracking(true);
     fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
     fileList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     fileList_->setTextElideMode(Qt::ElideRight);
@@ -360,6 +365,15 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     settingsScrollArea->setWidget(settingsPanel_);
     contentStack_->addWidget(settingsScrollArea);
     populateSettingsPanel();
+
+    const std::array<QWidget *, 13> cursorUpdateWidgets = {
+        pathLabel_,    homeButton_,           backButton_,        forwardButton_,
+        upButton_,     historyButton_,        settingsButton_,    contentStack_,
+        fileList_,     fileList_->viewport(), settingsScrollArea, settingsScrollArea->viewport(),
+        settingsPanel_};
+    for (auto *widget : cursorUpdateWidgets) {
+        widget->installEventFilter(this);
+    }
 
     pendingDirectoryClickTimer_ = new QTimer(this);
     pendingDirectoryClickTimer_->setSingleShot(true);
@@ -463,6 +477,14 @@ QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 
 int Sidebar::sidebarWidth() const { return width(); }
 
+bool Sidebar::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Enter || event->type() == QEvent::MouseMove) {
+        updateResizeCursor(mapFromGlobal(QCursor::pos()));
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
 void Sidebar::mouseMoveEvent(QMouseEvent *event) {
     if (resizing_) {
         const auto delta = event->globalPosition().toPoint().x() - resizeStartGlobalX_;
@@ -471,12 +493,7 @@ void Sidebar::mouseMoveEvent(QMouseEvent *event) {
         return;
     }
 
-    if (isResizeHandlePosition(event->position().toPoint())) {
-        setCursor(Qt::SizeHorCursor);
-    } else {
-        unsetCursor();
-    }
-
+    updateResizeCursor(event->position().toPoint());
     QWidget::mouseMoveEvent(event);
 }
 
@@ -928,6 +945,15 @@ const HistoryEntry *Sidebar::historyEntryForPath(const QString &bookPath) const 
         }
     }
     return nullptr;
+}
+
+void Sidebar::updateResizeCursor(const QPoint &position) {
+    if (resizing_ || isResizeHandlePosition(position)) {
+        setCursor(Qt::SizeHorCursor);
+        return;
+    }
+
+    unsetCursor();
 }
 
 bool Sidebar::isResizeHandlePosition(const QPoint &position) const {
