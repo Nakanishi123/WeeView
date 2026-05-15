@@ -108,6 +108,11 @@ Cache eviction is memory-size based.
 The current display group is protected from eviction. Remaining cache memory is preferentially used for pages after the
 current display group, with about 2/3 for following pages and 1/3 for previous pages.
 
+### Page metadata loading
+
+Book opening does not synchronously read image dimensions for every page. Metadata for the current display area is
+prioritized, and remaining page metadata is loaded incrementally after the book is open.
+
 ## 3. Deferred features
 
 Potential post-MVP features:

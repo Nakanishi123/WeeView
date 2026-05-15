@@ -17,6 +17,7 @@ class ZipBook final : public Book {
     [[nodiscard]] QString sourcePath() const override;
     [[nodiscard]] int pageCount() const override;
     [[nodiscard]] PageInfo pageInfo(int pageIndex) const override;
+    [[nodiscard]] PageInfo loadPageInfo(int pageIndex) const override;
     [[nodiscard]] QImage loadPage(int pageIndex) const override;
 
   private:

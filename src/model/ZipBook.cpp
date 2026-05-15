@@ -40,6 +40,18 @@ PageInfo ZipBook::pageInfo(int pageIndex) const {
     return pages_.at(pageIndex).info;
 }
 
+PageInfo ZipBook::loadPageInfo(int pageIndex) const {
+    if (!isValidPageIndex(pageIndex)) {
+        return {};
+    }
+
+    auto info = pages_.at(pageIndex).info;
+    info.imageSize =
+        ImageDecoder().imageSize(reader_.readFile(pages_.at(pageIndex).entryPath), pages_.at(pageIndex).entryPath);
+    info.isLandscape = info.imageSize.isValid() && info.imageSize.width() > info.imageSize.height();
+    return info;
+}
+
 QImage ZipBook::loadPage(int pageIndex) const {
     if (!isValidPageIndex(pageIndex)) {
         return {};
@@ -59,14 +71,13 @@ void ZipBook::scanPages() {
 
     pages_.reserve(pageEntryPaths.size());
     for (const auto &entryPath : pageEntryPaths) {
-        const auto imageSize = ImageDecoder().imageSize(reader_.readFile(entryPath), entryPath);
         pages_.append({
             entryPath,
             {
                 QFileInfo(entryPath).fileName(),
                 entryPath,
-                imageSize,
-                imageSize.isValid() && imageSize.width() > imageSize.height(),
+                {},
+                false,
             },
         });
     }

@@ -10,6 +10,9 @@ Landscape pages are displayed as single pages in spread mode.
 
 Spread grouping is based on page metadata, not decoded image cache state.
 
+Page metadata may be loaded lazily. The app should prioritize metadata for the current display group before painting and
+may continue loading metadata for nearby and remaining pages after the book is open.
+
 `currentPageIndex` is zero-based and means the logical first page index of the current display group.
 
 - In single-page mode, it is the displayed page.
@@ -227,6 +230,9 @@ This asymmetry is expected.
 ## Spread visual order
 
 Logical grouping is independent from visual order.
+
+If metadata for a future page has not been loaded yet, that page may be treated as portrait until its metadata is
+available. When metadata is loaded, the current display group should be recalculated from the same viewer state.
 
 Right-to-left:
 

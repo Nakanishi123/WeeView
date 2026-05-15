@@ -6,6 +6,7 @@
 #include "model/Book.h"
 
 #include <QMainWindow>
+#include <QSet>
 #include <QVector>
 #include <memory>
 
@@ -41,6 +42,14 @@ class MainWindow final : public QMainWindow {
     void executeDeferredPageLoad();
     void cancelDeferredPageLoad();
     void refreshCachedImages();
+    void cancelImagePreload();
+    void processImagePreloadBatch();
+    void resetPageMetadata();
+    void loadPageMetadataForState(const ViewerState &viewerState);
+    bool loadPageMetadata(int pageIndex);
+    void schedulePageMetadataLoad();
+    void cancelPageMetadataLoad();
+    void processPageMetadataBatch();
     void loadPageIntoCache(int pageIndex);
     void loadHistory();
     void saveCurrentHistory();
@@ -53,10 +62,20 @@ class MainWindow final : public QMainWindow {
     OverlayContainer *overlayContainer_ = nullptr;
     AppSettings appSettings_;
     QTimer *deferredPageLoadTimer_ = nullptr;
+    QTimer *imagePreloadTimer_ = nullptr;
+    QTimer *pageMetadataTimer_ = nullptr;
     HistoryStore historyStore_;
     ImageCache imageCache_;
     QVector<HistoryEntry> historyEntries_;
+    QVector<int> imagePreloadQueue_;
+    QVector<int> pageMetadataQueue_;
+    QVector<PageInfo> pageMetadata_;
+    QVector<bool> pageLandscapeFlags_;
+    QSet<int> retainedImagePageIndices_;
+    QSet<int> protectedImagePageIndices_;
+    QSet<int> loadedPageMetadataIndices_;
     std::unique_ptr<Book> currentBook_;
+    qint64 imagePreloadBudgetBytes_ = 0;
     bool loadingBook_ = false;
     bool deferredPageLoadPending_ = false;
 };

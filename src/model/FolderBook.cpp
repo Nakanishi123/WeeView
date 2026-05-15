@@ -34,6 +34,17 @@ PageInfo FolderBook::pageInfo(int pageIndex) const {
     return pages_.at(pageIndex).info;
 }
 
+PageInfo FolderBook::loadPageInfo(int pageIndex) const {
+    if (!isValidPageIndex(pageIndex)) {
+        return {};
+    }
+
+    auto info = pages_.at(pageIndex).info;
+    info.imageSize = ImageDecoder().imageSize(pages_.at(pageIndex).filePath);
+    info.isLandscape = info.imageSize.isValid() && info.imageSize.width() > info.imageSize.height();
+    return info;
+}
+
 QImage FolderBook::loadPage(int pageIndex) const {
     if (!isValidPageIndex(pageIndex)) {
         return {};
@@ -57,16 +68,14 @@ void FolderBook::scanPages() {
 
     pages_.reserve(pagePaths.size());
     for (const auto &pagePath : pagePaths) {
-        const auto imageSize = ImageDecoder().imageSize(pagePath);
-
         const QFileInfo pageFile(pagePath);
         pages_.append({
             pagePath,
             {
                 pageFile.fileName(),
                 pagePath,
-                imageSize,
-                imageSize.isValid() && imageSize.width() > imageSize.height(),
+                {},
+                false,
             },
         });
     }

@@ -27,6 +27,8 @@ namespace {
 
 constexpr qint64 bytesPerMiB = 1024LL * 1024LL;
 constexpr qint64 decodedBytesPerPixelEstimate = 4;
+constexpr int metadataPagesPerBatch = 1;
+constexpr int preloadPagesPerBatch = 2;
 
 qint64 cacheBytesFromMiB(int mib) { return std::max<qint64>(1, mib) * bytesPerMiB; }
 
@@ -57,6 +59,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     deferredPageLoadTimer_ = new QTimer(this);
     deferredPageLoadTimer_->setSingleShot(true);
     connect(deferredPageLoadTimer_, &QTimer::timeout, this, &MainWindow::executeDeferredPageLoad);
+    imagePreloadTimer_ = new QTimer(this);
+    imagePreloadTimer_->setSingleShot(true);
+    connect(imagePreloadTimer_, &QTimer::timeout, this, &MainWindow::processImagePreloadBatch);
+    pageMetadataTimer_ = new QTimer(this);
+    pageMetadataTimer_->setSingleShot(true);
+    connect(pageMetadataTimer_, &QTimer::timeout, this, &MainWindow::processPageMetadataBatch);
 
     overlayContainer_->sidebar()->setHomeFolder(appSettings_.homeFolder);
     overlayContainer_->sidebar()->setCurrentFolder(appSettings_.homeFolder);
@@ -69,6 +77,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 void MainWindow::closeEvent(QCloseEvent *event) {
     cancelDeferredPageLoad();
+    cancelImagePreload();
+    cancelPageMetadataLoad();
     saveCurrentHistory();
     saveAppSettings();
     QMainWindow::closeEvent(event);
@@ -131,6 +141,8 @@ void MainWindow::wireSidebar() {
 
 void MainWindow::openFolderBook(const QString &folderPath, int requestedPageIndex) {
     cancelDeferredPageLoad();
+    cancelImagePreload();
+    cancelPageMetadataLoad();
     saveCurrentHistory();
 
     auto book = std::make_unique<FolderBook>(folderPath);
@@ -153,6 +165,8 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
 
 void MainWindow::openImageFile(const QString &filePath) {
     cancelDeferredPageLoad();
+    cancelImagePreload();
+    cancelPageMetadataLoad();
     saveCurrentHistory();
 
     const QFileInfo fileInfo(filePath);
@@ -172,6 +186,8 @@ void MainWindow::openImageFile(const QString &filePath) {
 
 void MainWindow::openArchiveBook(const QString &archivePath) {
     cancelDeferredPageLoad();
+    cancelImagePreload();
+    cancelPageMetadataLoad();
     saveCurrentHistory();
 
     auto book = std::make_unique<ZipBook>(archivePath);
@@ -198,6 +214,7 @@ void MainWindow::displayBook(const ViewerState &viewerState) {
     auto *header = overlayContainer_->headerBar();
 
     if (!currentBook_ || currentBook_->pageCount() == 0) {
+        resetPageMetadata();
         viewer->clearPageImages();
         header->setBookPath({});
         return;
@@ -207,16 +224,14 @@ void MainWindow::displayBook(const ViewerState &viewerState) {
     imageCache_.clear();
     viewer->clearPageImages();
     viewer->setPageCount(currentBook_->pageCount());
-    QVector<bool> landscapePages;
-    landscapePages.reserve(currentBook_->pageCount());
-    for (int index = 0; index < currentBook_->pageCount(); ++index) {
-        landscapePages.append(currentBook_->pageInfo(index).isLandscape);
-    }
-    viewer->setPageLandscapeFlags(landscapePages);
+    resetPageMetadata();
+    loadPageMetadataForState(viewerState);
+    viewer->setPageLandscapeFlags(pageLandscapeFlags_);
     viewer->setViewerState(viewerState);
 
     header->setBookPath(currentBook_->sourcePath());
     refreshCachedImages();
+    schedulePageMetadataLoad();
 
     loadingBook_ = false;
     saveCurrentHistory();
@@ -242,6 +257,10 @@ void MainWindow::handleCurrentPageChanged() {
         return;
     }
 
+    cancelImagePreload();
+    loadPageMetadataForState(overlayContainer_->viewer()->viewerState());
+    overlayContainer_->viewer()->setPageLandscapeFlags(pageLandscapeFlags_);
+    schedulePageMetadataLoad();
     scheduleDeferredPageLoad();
 }
 
@@ -269,6 +288,8 @@ void MainWindow::cancelDeferredPageLoad() {
 }
 
 void MainWindow::refreshCachedImages() {
+    cancelImagePreload();
+
     if (!currentBook_) {
         return;
     }
@@ -276,12 +297,14 @@ void MainWindow::refreshCachedImages() {
     auto *viewer = overlayContainer_->viewer();
     const auto pageCount = currentBook_->pageCount();
     if (pageCount <= 0) {
+        retainedImagePageIndices_.clear();
+        protectedImagePageIndices_.clear();
         viewer->retainPageImages({});
         return;
     }
 
-    QSet<int> retainedPageIndices;
-    QSet<int> protectedPageIndices;
+    retainedImagePageIndices_.clear();
+    protectedImagePageIndices_.clear();
 
     const auto viewerState = viewer->viewerState();
     const auto firstDisplayPageIndex = std::clamp(viewerState.currentPageIndex, 0, pageCount - 1);
@@ -293,41 +316,42 @@ void MainWindow::refreshCachedImages() {
     for (int index = firstDisplayPageIndex; index <= displayEndPageIndex; ++index) {
         loadPageIntoCache(index);
         viewer->setPageImage(index, imageCache_.image(index));
-        retainedPageIndices.insert(index);
-        protectedPageIndices.insert(index);
+        retainedImagePageIndices_.insert(index);
+        protectedImagePageIndices_.insert(index);
     }
 
-    imageCache_.trimToMemoryLimit(protectedPageIndices);
+    imageCache_.trimToMemoryLimit(protectedImagePageIndices_);
 
     auto protectedBytes = qint64{0};
-    for (const auto pageIndex : protectedPageIndices) {
+    for (const auto pageIndex : protectedImagePageIndices_) {
         protectedBytes += imageCache_.imageSizeInBytes(pageIndex);
     }
 
     const auto preloadBudget = std::max<qint64>(0, imageCache_.maxBytes() - protectedBytes);
     auto nextBudget = preloadBudget * 2 / 3;
     auto previousBudget = preloadBudget - nextBudget;
+    auto retainedPreloadBytes = qint64{0};
 
-    auto tryRetainPreloadPage = [&](int pageIndex, qint64 budget) -> qint64 {
-        if (pageIndex < 0 || pageIndex >= pageCount || retainedPageIndices.contains(pageIndex) || budget <= 0) {
+    imagePreloadBudgetBytes_ = preloadBudget;
+
+    auto tryQueuePreloadPage = [&](int pageIndex, qint64 budget) -> qint64 {
+        if (pageIndex < 0 || pageIndex >= pageCount || retainedImagePageIndices_.contains(pageIndex) || budget <= 0) {
             return 0;
         }
 
-        if (!imageCache_.contains(pageIndex)) {
-            const auto estimatedBytes = estimatedDecodedBytes(currentBook_->pageInfo(pageIndex));
-            if (estimatedBytes > budget) {
-                return 0;
-            }
-            loadPageIntoCache(pageIndex);
-        }
-
-        const auto imageBytes = imageCache_.imageSizeInBytes(pageIndex);
+        const auto imageBytes = imageCache_.contains(pageIndex) ? imageCache_.imageSizeInBytes(pageIndex)
+                                                                : estimatedDecodedBytes(pageMetadata_.value(pageIndex));
         if (imageBytes <= 0 || imageBytes > budget) {
             return 0;
         }
 
-        viewer->setPageImage(pageIndex, imageCache_.image(pageIndex));
-        retainedPageIndices.insert(pageIndex);
+        imagePreloadQueue_.append(pageIndex);
+        if (imageCache_.contains(pageIndex)) {
+            viewer->setPageImage(pageIndex, imageCache_.image(pageIndex));
+            retainedImagePageIndices_.insert(pageIndex);
+            retainedPreloadBytes += imageBytes;
+        }
+
         return imageBytes;
     };
 
@@ -336,8 +360,8 @@ void MainWindow::refreshCachedImages() {
         auto usedBytes = qint64{0};
 
         while (index >= 0 && index < pageCount && usedBytes < budget) {
-            const auto usedForPage = tryRetainPreloadPage(index, budget - usedBytes);
-            if (usedForPage <= 0 && !retainedPageIndices.contains(index)) {
+            const auto usedForPage = tryQueuePreloadPage(index, budget - usedBytes);
+            if (usedForPage <= 0 && !retainedImagePageIndices_.contains(index)) {
                 break;
             }
 
@@ -366,9 +390,190 @@ void MainWindow::refreshCachedImages() {
         nextBudget -= usedCarryBytes;
     }
 
-    imageCache_.retain(retainedPageIndices);
-    imageCache_.trimToMemoryLimit(protectedPageIndices);
-    viewer->retainPageImages(retainedPageIndices);
+    imagePreloadBudgetBytes_ = std::max<qint64>(0, imagePreloadBudgetBytes_ - retainedPreloadBytes);
+    imageCache_.retain(retainedImagePageIndices_);
+    imageCache_.trimToMemoryLimit(protectedImagePageIndices_);
+    viewer->retainPageImages(retainedImagePageIndices_);
+
+    if (!imagePreloadQueue_.isEmpty() && imagePreloadTimer_ != nullptr) {
+        imagePreloadTimer_->start(0);
+    }
+}
+
+void MainWindow::cancelImagePreload() {
+    if (imagePreloadTimer_ != nullptr) {
+        imagePreloadTimer_->stop();
+    }
+    imagePreloadQueue_.clear();
+    imagePreloadBudgetBytes_ = 0;
+}
+
+void MainWindow::processImagePreloadBatch() {
+    if (!currentBook_ || imagePreloadQueue_.isEmpty() || imagePreloadBudgetBytes_ <= 0) {
+        imagePreloadQueue_.clear();
+        return;
+    }
+
+    auto *viewer = overlayContainer_->viewer();
+    auto processedCount = 0;
+    while (!imagePreloadQueue_.isEmpty() && processedCount < preloadPagesPerBatch && imagePreloadBudgetBytes_ > 0) {
+        const auto pageIndex = imagePreloadQueue_.takeFirst();
+        if (pageIndex < 0 || pageIndex >= currentBook_->pageCount() || retainedImagePageIndices_.contains(pageIndex)) {
+            continue;
+        }
+
+        ++processedCount;
+        loadPageIntoCache(pageIndex);
+        const auto imageBytes = imageCache_.imageSizeInBytes(pageIndex);
+        if (imageBytes <= 0 || imageBytes > imagePreloadBudgetBytes_) {
+            imageCache_.retain(retainedImagePageIndices_);
+            imageCache_.trimToMemoryLimit(protectedImagePageIndices_);
+            viewer->retainPageImages(retainedImagePageIndices_);
+            continue;
+        }
+
+        imagePreloadBudgetBytes_ -= imageBytes;
+        viewer->setPageImage(pageIndex, imageCache_.image(pageIndex));
+        retainedImagePageIndices_.insert(pageIndex);
+    }
+
+    imageCache_.retain(retainedImagePageIndices_);
+    imageCache_.trimToMemoryLimit(protectedImagePageIndices_);
+    viewer->retainPageImages(retainedImagePageIndices_);
+
+    if (!imagePreloadQueue_.isEmpty() && imagePreloadBudgetBytes_ > 0 && imagePreloadTimer_ != nullptr) {
+        imagePreloadTimer_->start(0);
+    }
+}
+
+void MainWindow::resetPageMetadata() {
+    pageMetadataQueue_.clear();
+    pageMetadata_.clear();
+    pageLandscapeFlags_.clear();
+    loadedPageMetadataIndices_.clear();
+
+    if (!currentBook_ || currentBook_->pageCount() <= 0) {
+        return;
+    }
+
+    const auto pageCount = currentBook_->pageCount();
+    pageMetadata_.reserve(pageCount);
+    pageLandscapeFlags_.resize(pageCount);
+    for (int index = 0; index < pageCount; ++index) {
+        pageMetadata_.append(currentBook_->pageInfo(index));
+    }
+}
+
+void MainWindow::loadPageMetadataForState(const ViewerState &viewerState) {
+    if (!currentBook_) {
+        return;
+    }
+
+    const auto pageCount = currentBook_->pageCount();
+    if (pageCount <= 0) {
+        return;
+    }
+
+    auto loadIfInRange = [this, pageCount](int pageIndex) {
+        if (pageIndex >= 0 && pageIndex < pageCount) {
+            loadPageMetadata(pageIndex);
+        }
+    };
+
+    loadIfInRange(viewerState.currentPageIndex);
+    loadIfInRange(viewerState.currentDisplayLastPageIndex);
+
+    if (viewerState.viewMode == ViewMode::Spread) {
+        loadIfInRange(viewerState.currentPageIndex - 1);
+        loadIfInRange(viewerState.currentPageIndex + 1);
+        loadIfInRange(viewerState.currentDisplayLastPageIndex - 1);
+        loadIfInRange(viewerState.currentDisplayLastPageIndex + 1);
+    }
+}
+
+bool MainWindow::loadPageMetadata(int pageIndex) {
+    if (!currentBook_ || pageIndex < 0 || pageIndex >= currentBook_->pageCount() ||
+        loadedPageMetadataIndices_.contains(pageIndex)) {
+        return false;
+    }
+
+    const auto pageInfo = currentBook_->loadPageInfo(pageIndex);
+    if (pageInfo.displayPath.isEmpty()) {
+        return false;
+    }
+
+    if (pageMetadata_.size() < currentBook_->pageCount()) {
+        resetPageMetadata();
+    }
+    pageMetadata_[pageIndex] = pageInfo;
+    pageLandscapeFlags_[pageIndex] = pageInfo.isLandscape;
+    loadedPageMetadataIndices_.insert(pageIndex);
+    return true;
+}
+
+void MainWindow::schedulePageMetadataLoad() {
+    if (!currentBook_ || currentBook_->pageCount() <= 0) {
+        return;
+    }
+
+    const auto pageCount = currentBook_->pageCount();
+    const auto currentPageIndex = std::clamp(overlayContainer_->viewer()->currentPageIndex(), 0, pageCount - 1);
+    pageMetadataQueue_.clear();
+
+    for (int index = currentPageIndex + 1; index < pageCount; ++index) {
+        if (!loadedPageMetadataIndices_.contains(index)) {
+            pageMetadataQueue_.append(index);
+        }
+    }
+    for (int index = currentPageIndex - 1; index >= 0; --index) {
+        if (!loadedPageMetadataIndices_.contains(index)) {
+            pageMetadataQueue_.append(index);
+        }
+    }
+    if (!loadedPageMetadataIndices_.contains(currentPageIndex)) {
+        pageMetadataQueue_.prepend(currentPageIndex);
+    }
+
+    if (!pageMetadataQueue_.isEmpty() && pageMetadataTimer_ != nullptr) {
+        pageMetadataTimer_->start(0);
+    }
+}
+
+void MainWindow::cancelPageMetadataLoad() {
+    if (pageMetadataTimer_ != nullptr) {
+        pageMetadataTimer_->stop();
+    }
+    pageMetadataQueue_.clear();
+}
+
+void MainWindow::processPageMetadataBatch() {
+    if (!currentBook_ || pageMetadataQueue_.isEmpty()) {
+        pageMetadataQueue_.clear();
+        return;
+    }
+
+    auto updated = false;
+    auto processedCount = 0;
+    while (!pageMetadataQueue_.isEmpty() && processedCount < metadataPagesPerBatch) {
+        const auto pageIndex = pageMetadataQueue_.takeFirst();
+        if (pageIndex < 0 || pageIndex >= currentBook_->pageCount() || loadedPageMetadataIndices_.contains(pageIndex)) {
+            continue;
+        }
+
+        ++processedCount;
+        updated = loadPageMetadata(pageIndex) || updated;
+    }
+
+    if (updated) {
+        overlayContainer_->viewer()->setPageLandscapeFlags(pageLandscapeFlags_);
+        if (imagePreloadQueue_.isEmpty()) {
+            refreshCachedImages();
+        }
+    }
+
+    if (!pageMetadataQueue_.isEmpty() && pageMetadataTimer_ != nullptr) {
+        pageMetadataTimer_->start(0);
+    }
 }
 
 void MainWindow::loadPageIntoCache(int pageIndex) {
