@@ -3,6 +3,7 @@
 #include "archive/SevenZipArchiveReader.h"
 #include "archive/ZipArchiveReader.h"
 
+#include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
 
@@ -16,10 +17,8 @@ bool hasSevenZipSignature(const QString &archivePath) {
     }
 
     const auto signature = file.read(6);
-    return signature.size() == 6 && static_cast<unsigned char>(signature.at(0)) == 0x37 &&
-           static_cast<unsigned char>(signature.at(1)) == 0x7A && static_cast<unsigned char>(signature.at(2)) == 0xBC &&
-           static_cast<unsigned char>(signature.at(3)) == 0xAF && static_cast<unsigned char>(signature.at(4)) == 0x27 &&
-           static_cast<unsigned char>(signature.at(5)) == 0x1C;
+    static const auto expectedSignature = QByteArray::fromHex("377abcaf271c");
+    return signature == expectedSignature;
 }
 
 } // namespace

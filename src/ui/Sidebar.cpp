@@ -491,6 +491,7 @@ bool Sidebar::eventFilter(QObject *watched, QEvent *event) {
         updateResizeCursor(mapFromGlobal(QCursor::pos()));
     }
 
+    Q_UNUSED(watched);
     return QWidget::eventFilter(watched, event);
 }
 
@@ -534,16 +535,19 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
 
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     clearPendingDirectoryClick();
+    const auto wasShowingAlternateView = showingHistory_ || showingSettings_;
     showingHistory_ = false;
     showingSettings_ = false;
     ++historyThumbnailGeneration_;
 
     const auto normalized = normalizedFolderPath(folderPath);
     if (currentFolder_ == normalized) {
-        contentStack_->setCurrentIndex(0);
-        showingHistory_ = false;
-        showingSettings_ = false;
-        pathLabel_->setText(currentFolder_);
+        if (wasShowingAlternateView || contentStack_->currentIndex() != 0) {
+            populateFileList();
+        } else {
+            contentStack_->setCurrentIndex(0);
+            pathLabel_->setText(currentFolder_);
+        }
         updateNavigationButtons();
         return;
     }

@@ -7,7 +7,7 @@ On startup:
 - Open the main window.
 - Do not automatically open the last book.
 - Show the configured home folder in the sidebar.
-- Keep the main image area empty until the user opens a folder, image file, ZIP, or CBZ.
+- Keep the main image area empty until the user opens a folder, image file, or supported archive file.
 
 If no home folder is configured, use the user's home directory as the sidebar home folder.
 

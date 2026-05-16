@@ -13,6 +13,8 @@ namespace weeview {
 namespace {
 
 constexpr qsizetype archiveBlockSize = 10240;
+constexpr la_int64_t maxReadableEntrySize = 512LL * 1024LL * 1024LL;
+constexpr qsizetype maxExtractedFileCacheBytes = 64 * 1024 * 1024;
 
 QString archiveEntryPath(archive_entry *entry) {
     if (entry == nullptr) {
@@ -71,6 +73,10 @@ QVector<ArchiveEntry> SevenZipArchiveReader::entries() const {
 }
 
 QByteArray SevenZipArchiveReader::readFile(const QString &entryPath) const {
+    if (const auto cached = cachedFile(entryPath); !cached.isNull()) {
+        return cached;
+    }
+
     auto archiveReader = openArchive();
     if (!archiveReader) {
         return {};
@@ -83,23 +89,80 @@ QByteArray SevenZipArchiveReader::readFile(const QString &entryPath) const {
             continue;
         }
 
+        const auto expectedSize = archive_entry_size(entry);
+        if (expectedSize > maxReadableEntrySize) {
+            return {};
+        }
+
         QByteArray data;
+        if (expectedSize >= 0) {
+            data.reserve(static_cast<qsizetype>(std::min<la_int64_t>(expectedSize, maxReadableEntrySize)));
+        }
+
         const void *block = nullptr;
         size_t size = 0;
         la_int64_t offset = 0;
         while (true) {
             const auto status = archive_read_data_block(archiveReader.get(), &block, &size, &offset);
             if (status == ARCHIVE_EOF) {
+                cacheFile(entryPath, data);
                 return data;
             }
             if (status != ARCHIVE_OK) {
                 return {};
             }
+            if (size > static_cast<size_t>(std::numeric_limits<qsizetype>::max()) ||
+                data.size() > std::numeric_limits<qsizetype>::max() - static_cast<qsizetype>(size)) {
+                return {};
+            }
+
+            const auto nextSize = data.size() + static_cast<qsizetype>(size);
+            if (nextSize > maxReadableEntrySize || (expectedSize >= 0 && nextSize > expectedSize)) {
+                return {};
+            }
+
             data.append(static_cast<const char *>(block), static_cast<qsizetype>(size));
         }
     }
 
     return {};
+}
+
+QByteArray SevenZipArchiveReader::cachedFile(const QString &entryPath) const {
+    const auto it = extractedFileCache_.constFind(entryPath);
+    if (it == extractedFileCache_.constEnd()) {
+        return {};
+    }
+    extractedFileCacheOrder_.removeAll(entryPath);
+    extractedFileCacheOrder_.append(entryPath);
+    return it.value();
+}
+
+void SevenZipArchiveReader::cacheFile(const QString &entryPath, const QByteArray &data) const {
+    if (data.isEmpty() || data.size() > maxExtractedFileCacheBytes) {
+        return;
+    }
+
+    if (const auto it = extractedFileCache_.find(entryPath); it != extractedFileCache_.end()) {
+        extractedFileCacheBytes_ -= it.value().size();
+        extractedFileCache_.erase(it);
+        extractedFileCacheOrder_.removeAll(entryPath);
+    }
+
+    extractedFileCache_.insert(entryPath, data);
+    extractedFileCacheOrder_.append(entryPath);
+    extractedFileCacheBytes_ += data.size();
+
+    while (extractedFileCacheBytes_ > maxExtractedFileCacheBytes && !extractedFileCacheOrder_.isEmpty()) {
+        const auto oldestEntryPath = extractedFileCacheOrder_.takeFirst();
+        const auto it = extractedFileCache_.find(oldestEntryPath);
+        if (it == extractedFileCache_.end()) {
+            continue;
+        }
+
+        extractedFileCacheBytes_ -= it.value().size();
+        extractedFileCache_.erase(it);
+    }
 }
 
 void SevenZipArchiveReader::ArchiveDeleter::operator()(archive *archiveReader) const {

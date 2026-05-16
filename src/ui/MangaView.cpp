@@ -19,15 +19,18 @@ constexpr int checkerboardCellSize = 12;
 const QColor checkerboardBlack(0, 0, 0);
 const QColor checkerboardDarkGray(24, 24, 24);
 
-QPixmap checkerboardPattern() {
-    QPixmap pattern(checkerboardCellSize * 2, checkerboardCellSize * 2);
-    pattern.fill(checkerboardBlack);
+const QBrush &checkerboardBrush() {
+    static const QBrush brush = [] {
+        QPixmap pattern(checkerboardCellSize * 2, checkerboardCellSize * 2);
+        pattern.fill(checkerboardBlack);
 
-    QPainter painter(&pattern);
-    painter.fillRect(0, 0, checkerboardCellSize, checkerboardCellSize, checkerboardDarkGray);
-    painter.fillRect(checkerboardCellSize, checkerboardCellSize, checkerboardCellSize, checkerboardCellSize,
-                     checkerboardDarkGray);
-    return pattern;
+        QPainter painter(&pattern);
+        painter.fillRect(0, 0, checkerboardCellSize, checkerboardCellSize, checkerboardDarkGray);
+        painter.fillRect(checkerboardCellSize, checkerboardCellSize, checkerboardCellSize, checkerboardCellSize,
+                         checkerboardDarkGray);
+        return QBrush(pattern);
+    }();
+    return brush;
 }
 } // namespace
 
@@ -219,7 +222,7 @@ void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 
     QPainter painter(this);
-    painter.fillRect(rect(), QBrush(checkerboardPattern()));
+    painter.fillRect(rect(), checkerboardBrush());
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     const auto pageIndices = paintPageIndices();
