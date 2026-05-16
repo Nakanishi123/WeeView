@@ -33,6 +33,7 @@ constexpr qint64 bytesPerMiB = 1024LL * 1024LL;
 constexpr qint64 decodedBytesPerPixelEstimate = 4;
 constexpr int metadataPagesPerBatch = 1;
 constexpr int maxConcurrentImageLoads = 2;
+constexpr int maxConcurrentPageMetadataLoads = 2;
 constexpr int preloadPagesPerBatch = 2;
 constexpr qsizetype maxHistoryEntries = 200;
 
@@ -42,6 +43,14 @@ struct ImageLoadResult {
     QString sourcePath;
     int pageIndex = -1;
     QImage image;
+};
+
+struct PageMetadataLoadResult {
+    int generation = 0;
+    BookType bookType = BookType::Folder;
+    QString sourcePath;
+    int pageIndex = -1;
+    PageInfo pageInfo;
 };
 
 qint64 cacheBytesFromMiB(int mib) { return std::max<qint64>(1, mib) * bytesPerMiB; }
@@ -65,6 +74,20 @@ ImageLoadResult loadPageImageInBackground(int generation, BookType bookType, con
 
     return {
         generation, bookType, sourcePath, pageIndex, book ? book->loadPage(pageIndex) : QImage(),
+    };
+}
+
+PageMetadataLoadResult loadPageMetadataInBackground(int generation, BookType bookType, const QString &sourcePath,
+                                                    int pageIndex) {
+    std::unique_ptr<Book> book;
+    if (bookType == BookType::Archive) {
+        book = std::make_unique<ArchiveBook>(sourcePath);
+    } else {
+        book = std::make_unique<FolderBook>(sourcePath);
+    }
+
+    return {
+        generation, bookType, sourcePath, pageIndex, book ? book->loadPageInfo(pageIndex) : PageInfo(),
     };
 }
 
@@ -574,6 +597,7 @@ void MainWindow::resetPageMetadata() {
     pageMetadata_.clear();
     pageLandscapeFlags_.clear();
     loadedPageMetadataIndices_.clear();
+    pendingPageMetadataIndices_.clear();
 
     if (!currentBook_ || currentBook_->pageCount() <= 0) {
         return;
@@ -599,7 +623,7 @@ void MainWindow::loadPageMetadataForState(const ViewerState &viewerState) {
 
     auto loadIfInRange = [this, pageCount](int pageIndex) {
         if (pageIndex >= 0 && pageIndex < pageCount) {
-            loadPageMetadata(pageIndex);
+            requestPageMetadataLoad(pageIndex);
         }
     };
 
@@ -614,24 +638,54 @@ void MainWindow::loadPageMetadataForState(const ViewerState &viewerState) {
     }
 }
 
-bool MainWindow::loadPageMetadata(int pageIndex) {
+void MainWindow::requestPageMetadataLoad(int pageIndex) {
     if (!currentBook_ || pageIndex < 0 || pageIndex >= currentBook_->pageCount() ||
-        loadedPageMetadataIndices_.contains(pageIndex)) {
-        return false;
+        loadedPageMetadataIndices_.contains(pageIndex) || pendingPageMetadataIndices_.contains(pageIndex)) {
+        return;
     }
 
-    const auto pageInfo = currentBook_->loadPageInfo(pageIndex);
-    if (pageInfo.displayPath.isEmpty()) {
-        return false;
-    }
+    pendingPageMetadataIndices_.insert(pageIndex);
 
-    if (pageMetadata_.size() < currentBook_->pageCount()) {
-        resetPageMetadata();
-    }
-    pageMetadata_[pageIndex] = pageInfo;
-    pageLandscapeFlags_[pageIndex] = pageInfo.isLandscape;
-    loadedPageMetadataIndices_.insert(pageIndex);
-    return true;
+    auto *watcher = new QFutureWatcher<PageMetadataLoadResult>(this);
+    const auto generation = pageMetadataGeneration_;
+    const auto bookType = currentBook_->type();
+    const auto sourcePath = currentBook_->sourcePath();
+    connect(watcher, &QFutureWatcher<PageMetadataLoadResult>::finished, this, [this, watcher] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+
+        if (result.generation != pageMetadataGeneration_) {
+            return;
+        }
+
+        pendingPageMetadataIndices_.remove(result.pageIndex);
+
+        if (!currentBook_ || result.pageIndex < 0 || result.pageIndex >= currentBook_->pageCount() ||
+            result.bookType != currentBook_->type() ||
+            QFileInfo(result.sourcePath).absoluteFilePath() !=
+                QFileInfo(currentBook_->sourcePath()).absoluteFilePath() ||
+            result.pageInfo.displayPath.isEmpty()) {
+            return;
+        }
+
+        if (pageMetadata_.size() < currentBook_->pageCount()) {
+            resetPageMetadata();
+        }
+        pageMetadata_[result.pageIndex] = result.pageInfo;
+        pageLandscapeFlags_[result.pageIndex] = result.pageInfo.isLandscape;
+        loadedPageMetadataIndices_.insert(result.pageIndex);
+
+        overlayContainer_->viewer()->setPageLandscapeFlags(pageLandscapeFlags_);
+        if (imagePreloadQueue_.isEmpty()) {
+            refreshCachedImages();
+        }
+
+        if (!pageMetadataQueue_.isEmpty() && pageMetadataTimer_ != nullptr &&
+            pendingPageMetadataIndices_.size() < maxConcurrentPageMetadataLoads) {
+            pageMetadataTimer_->start(0);
+        }
+    });
+    watcher->setFuture(QtConcurrent::run(loadPageMetadataInBackground, generation, bookType, sourcePath, pageIndex));
 }
 
 void MainWindow::schedulePageMetadataLoad() {
@@ -644,16 +698,17 @@ void MainWindow::schedulePageMetadataLoad() {
     pageMetadataQueue_.clear();
 
     for (int index = currentPageIndex + 1; index < pageCount; ++index) {
-        if (!loadedPageMetadataIndices_.contains(index)) {
+        if (!loadedPageMetadataIndices_.contains(index) && !pendingPageMetadataIndices_.contains(index)) {
             pageMetadataQueue_.append(index);
         }
     }
     for (int index = currentPageIndex - 1; index >= 0; --index) {
-        if (!loadedPageMetadataIndices_.contains(index)) {
+        if (!loadedPageMetadataIndices_.contains(index) && !pendingPageMetadataIndices_.contains(index)) {
             pageMetadataQueue_.append(index);
         }
     }
-    if (!loadedPageMetadataIndices_.contains(currentPageIndex)) {
+    if (!loadedPageMetadataIndices_.contains(currentPageIndex) &&
+        !pendingPageMetadataIndices_.contains(currentPageIndex)) {
         pageMetadataQueue_.prepend(currentPageIndex);
     }
 
@@ -667,6 +722,8 @@ void MainWindow::cancelPageMetadataLoad() {
         pageMetadataTimer_->stop();
     }
     pageMetadataQueue_.clear();
+    pendingPageMetadataIndices_.clear();
+    ++pageMetadataGeneration_;
 }
 
 void MainWindow::processPageMetadataBatch() {
@@ -675,26 +732,21 @@ void MainWindow::processPageMetadataBatch() {
         return;
     }
 
-    auto updated = false;
     auto processedCount = 0;
-    while (!pageMetadataQueue_.isEmpty() && processedCount < metadataPagesPerBatch) {
+    while (!pageMetadataQueue_.isEmpty() && processedCount < metadataPagesPerBatch &&
+           pendingPageMetadataIndices_.size() < maxConcurrentPageMetadataLoads) {
         const auto pageIndex = pageMetadataQueue_.takeFirst();
-        if (pageIndex < 0 || pageIndex >= currentBook_->pageCount() || loadedPageMetadataIndices_.contains(pageIndex)) {
+        if (pageIndex < 0 || pageIndex >= currentBook_->pageCount() || loadedPageMetadataIndices_.contains(pageIndex) ||
+            pendingPageMetadataIndices_.contains(pageIndex)) {
             continue;
         }
 
         ++processedCount;
-        updated = loadPageMetadata(pageIndex) || updated;
+        requestPageMetadataLoad(pageIndex);
     }
 
-    if (updated) {
-        overlayContainer_->viewer()->setPageLandscapeFlags(pageLandscapeFlags_);
-        if (imagePreloadQueue_.isEmpty()) {
-            refreshCachedImages();
-        }
-    }
-
-    if (!pageMetadataQueue_.isEmpty() && pageMetadataTimer_ != nullptr) {
+    if (!pageMetadataQueue_.isEmpty() && pageMetadataTimer_ != nullptr &&
+        pendingPageMetadataIndices_.size() < maxConcurrentPageMetadataLoads) {
         pageMetadataTimer_->start(0);
     }
 }

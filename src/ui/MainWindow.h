@@ -51,7 +51,7 @@ class MainWindow final : public QMainWindow {
     void processImagePreloadBatch();
     void resetPageMetadata();
     void loadPageMetadataForState(const ViewerState &viewerState);
-    bool loadPageMetadata(int pageIndex);
+    void requestPageMetadataLoad(int pageIndex);
     void schedulePageMetadataLoad();
     void cancelPageMetadataLoad();
     void processPageMetadataBatch();
@@ -83,9 +83,11 @@ class MainWindow final : public QMainWindow {
     QSet<int> protectedImagePageIndices_;
     QSet<int> loadedPageMetadataIndices_;
     QSet<int> pendingImageLoadIndices_;
+    QSet<int> pendingPageMetadataIndices_;
     std::unique_ptr<Book> currentBook_;
     qint64 imagePreloadBudgetBytes_ = 0;
     int imageLoadGeneration_ = 0;
+    int pageMetadataGeneration_ = 0;
     bool loadingBook_ = false;
     bool deferredPageLoadPending_ = false;
     QString suppressedHistoryBookPath_;
