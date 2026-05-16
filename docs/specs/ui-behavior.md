@@ -101,6 +101,9 @@ History replaces the file list with recent books from reading history. History e
 progress, reading state, and may show an asynchronously loaded thumbnail of the book's first page. Thumbnail loading may
 be limited to the most recent entries to avoid excessive disk and CPU work.
 
+Right-clicking the file list or history list opens a context menu for history-only operations. The menu can delete the
+history entry for the clicked book, and can delete all history entries that belong to the current sidebar folder.
+
 Settings replaces the file list with controls for editable app settings. Changes are persisted to `settings.json`.
 
 ## Header overlay

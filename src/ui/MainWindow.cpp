@@ -185,6 +185,8 @@ void MainWindow::wireSidebar() {
     connect(sidebar, &Sidebar::imageFileRequested, this, &MainWindow::openImageFile);
     connect(sidebar, &Sidebar::archiveBookRequested, this, &MainWindow::openArchiveBook);
     connect(sidebar, &Sidebar::sidebarWidthChanged, this, [this](int width) { appSettings_.sidebarWidth = width; });
+    connect(sidebar, &Sidebar::historyEntryDeleteRequested, this, &MainWindow::deleteHistoryEntry);
+    connect(sidebar, &Sidebar::currentFolderHistoryDeleteRequested, this, &MainWindow::deleteCurrentFolderHistory);
     connect(sidebar, &Sidebar::appSettingsChanged, this, [this, sidebar](const AppSettings &settings) {
         applyAppSettings(settings);
         sidebar->setHomeFolder(appSettings_.homeFolder);
@@ -196,11 +198,15 @@ void MainWindow::wireSidebar() {
     auto *viewer = overlayContainer_->viewer();
     connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);
     connect(viewer, &MangaView::viewModeChanged, this, [this] {
+        suppressedHistoryBookPath_.clear();
         cancelDeferredPageLoad();
         refreshCachedImages();
         saveCurrentHistory();
     });
-    connect(viewer, &MangaView::readingDirectionChanged, this, [this] { saveCurrentHistory(); });
+    connect(viewer, &MangaView::readingDirectionChanged, this, [this] {
+        suppressedHistoryBookPath_.clear();
+        saveCurrentHistory();
+    });
 }
 
 void MainWindow::openFolderBook(const QString &folderPath, int requestedPageIndex) {
@@ -211,6 +217,7 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
 
     auto book = std::make_unique<FolderBook>(folderPath);
     currentBook_ = std::move(book);
+    suppressedHistoryBookPath_.clear();
 
     overlayContainer_->sidebar()->setCurrentArchivePath({});
     ViewerState viewerState;
@@ -236,6 +243,7 @@ void MainWindow::openImageFile(const QString &filePath) {
     const QFileInfo fileInfo(filePath);
     auto book = std::make_unique<FolderBook>(fileInfo.dir().absolutePath());
     currentBook_ = std::move(book);
+    suppressedHistoryBookPath_.clear();
 
     overlayContainer_->sidebar()->setCurrentArchivePath({});
     const auto requestedPageIndex = pageIndexForPath(fileInfo.absoluteFilePath());
@@ -256,6 +264,7 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
 
     auto book = std::make_unique<ArchiveBook>(archivePath);
     currentBook_ = std::move(book);
+    suppressedHistoryBookPath_.clear();
 
     const QFileInfo archiveInfo(archivePath);
     overlayContainer_->sidebar()->setCurrentFolder(archiveInfo.dir().absolutePath());
@@ -321,6 +330,7 @@ void MainWindow::handleCurrentPageChanged() {
         return;
     }
 
+    suppressedHistoryBookPath_.clear();
     cancelImagePreload();
     loadPageMetadataForState(overlayContainer_->viewer()->viewerState());
     overlayContainer_->viewer()->setPageLandscapeFlags(pageLandscapeFlags_);
@@ -658,6 +668,10 @@ void MainWindow::saveCurrentHistory() {
     if (loadingBook_ || !currentBook_) {
         return;
     }
+    if (!suppressedHistoryBookPath_.isEmpty() &&
+        QFileInfo(currentBook_->sourcePath()).absoluteFilePath() == suppressedHistoryBookPath_) {
+        return;
+    }
 
     auto *viewer = overlayContainer_->viewer();
     const auto viewerState = viewer->viewerState();
@@ -696,6 +710,76 @@ void MainWindow::saveCurrentHistory() {
 void MainWindow::saveHistory() { [[maybe_unused]] const auto saved = historyStore_.save(historyEntries_); }
 
 void MainWindow::refreshSidebarHistory() { overlayContainer_->sidebar()->setHistoryEntries(historyEntries_); }
+
+void MainWindow::deleteHistoryEntry(const QString &bookPath) {
+    if (bookPath.isEmpty()) {
+        return;
+    }
+
+    saveCurrentHistory();
+
+    const auto normalizedPath = QFileInfo(bookPath).absoluteFilePath();
+    const auto oldSize = historyEntries_.size();
+    historyEntries_.erase(std::remove_if(historyEntries_.begin(), historyEntries_.end(),
+                                         [&normalizedPath](const HistoryEntry &entry) {
+                                             return QFileInfo(entry.bookPath).absoluteFilePath() == normalizedPath;
+                                         }),
+                          historyEntries_.end());
+    if (historyEntries_.size() == oldSize) {
+        return;
+    }
+
+    if (currentBook_ != nullptr && QFileInfo(currentBook_->sourcePath()).absoluteFilePath() == normalizedPath) {
+        suppressedHistoryBookPath_ = normalizedPath;
+    }
+
+    saveHistory();
+    refreshSidebarHistory();
+}
+
+void MainWindow::deleteCurrentFolderHistory(const QString &folderPath) {
+    if (folderPath.isEmpty()) {
+        return;
+    }
+
+    saveCurrentHistory();
+
+    const auto normalizedFolderPath = QFileInfo(folderPath).absoluteFilePath();
+    const auto oldSize = historyEntries_.size();
+    historyEntries_.erase(std::remove_if(historyEntries_.begin(), historyEntries_.end(),
+                                         [this, &normalizedFolderPath](const HistoryEntry &entry) {
+                                             return historyEntryBelongsToFolder(entry, normalizedFolderPath);
+                                         }),
+                          historyEntries_.end());
+    if (historyEntries_.size() == oldSize) {
+        return;
+    }
+
+    if (currentBook_ != nullptr) {
+        const auto currentBookPath = QFileInfo(currentBook_->sourcePath()).absoluteFilePath();
+        HistoryEntry currentEntry;
+        currentEntry.bookPath = currentBook_->sourcePath();
+        currentEntry.bookType = currentBook_->type();
+        if (historyEntryBelongsToFolder(currentEntry, normalizedFolderPath)) {
+            suppressedHistoryBookPath_ = currentBookPath;
+        }
+    }
+
+    saveHistory();
+    refreshSidebarHistory();
+}
+
+bool MainWindow::historyEntryBelongsToFolder(const HistoryEntry &entry, const QString &folderPath) const {
+    const auto normalizedFolderPath = QFileInfo(folderPath).absoluteFilePath();
+    const auto bookInfo = QFileInfo(entry.bookPath);
+    const auto bookPath = bookInfo.absoluteFilePath();
+
+    if (entry.bookType == BookType::Archive) {
+        return bookInfo.dir().absolutePath() == normalizedFolderPath;
+    }
+
+    return bookPath == normalizedFolderPath || bookInfo.dir().absolutePath() == normalizedFolderPath;
+}
 
 HistoryEntry *MainWindow::currentHistoryEntry() {
     if (!currentBook_) {

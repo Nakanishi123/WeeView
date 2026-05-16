@@ -59,6 +59,9 @@ class MainWindow final : public QMainWindow {
     void saveCurrentHistory();
     void saveHistory();
     void refreshSidebarHistory();
+    void deleteHistoryEntry(const QString &bookPath);
+    void deleteCurrentFolderHistory(const QString &folderPath);
+    [[nodiscard]] bool historyEntryBelongsToFolder(const HistoryEntry &entry, const QString &folderPath) const;
     [[nodiscard]] HistoryEntry *currentHistoryEntry();
     [[nodiscard]] HistoryEntry *historyEntryForPath(const QString &bookPath);
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
@@ -82,6 +85,7 @@ class MainWindow final : public QMainWindow {
     qint64 imagePreloadBudgetBytes_ = 0;
     bool loadingBook_ = false;
     bool deferredPageLoadPending_ = false;
+    QString suppressedHistoryBookPath_;
 };
 
 } // namespace weeview

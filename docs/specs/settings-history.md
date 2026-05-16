@@ -105,3 +105,11 @@ Reading:
 Completed:
 
 - `lastPageIndex >= pageCount - 1`.
+
+## History deletion
+
+Deleting history from the sidebar removes entries from `history.json` only. It must not delete, rename, move, or modify
+book files.
+
+Deleting all history for the current sidebar folder removes archive entries in that folder and folder-book entries for
+that folder or its direct child folders.

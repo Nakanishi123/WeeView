@@ -8,6 +8,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QCursor>
 #include <QDir>
 #include <QEvent>
@@ -21,6 +22,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
@@ -357,6 +359,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     fileList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     fileList_->setTextElideMode(Qt::ElideRight);
     fileList_->setWordWrap(false);
+    fileList_->viewport()->setContextMenuPolicy(Qt::CustomContextMenu);
     auto fileListFont = fileList_->font();
     if (fileListFont.pointSize() > 0) {
         fileListFont.setPointSize(fileListFont.pointSize() + fileListFontPointSizeIncrease);
@@ -412,6 +415,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     connect(settingsButton_, &QPushButton::clicked, this, &Sidebar::showSettings);
     connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemClicked);
     connect(fileList_, &QListWidget::itemDoubleClicked, this, &Sidebar::handleItemDoubleClicked);
+    connect(fileList_->viewport(), &QWidget::customContextMenuRequested, this, &Sidebar::showFileListContextMenu);
     connect(pendingDirectoryClickTimer_, &QTimer::timeout, this, &Sidebar::openPendingDirectoryClick);
 
     setHomeFolder(QDir::homePath());
@@ -487,6 +491,16 @@ QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 int Sidebar::sidebarWidth() const { return width(); }
 
 bool Sidebar::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::ContextMenu && (watched == fileList_ || watched == fileList_->viewport())) {
+        auto *contextMenuEvent = static_cast<QContextMenuEvent *>(event);
+        const auto viewportPosition = watched == fileList_->viewport()
+                                          ? contextMenuEvent->pos()
+                                          : fileList_->viewport()->mapFrom(fileList_, contextMenuEvent->pos());
+        showFileListContextMenu(viewportPosition);
+        event->accept();
+        return true;
+    }
+
     if (event->type() == QEvent::Enter || event->type() == QEvent::MouseMove) {
         updateResizeCursor(mapFromGlobal(QCursor::pos()));
     }
@@ -858,6 +872,31 @@ void Sidebar::handleItemDoubleClicked(QListWidgetItem *item) {
     navigateToFolder(item->data(entryPathRole).toString());
 }
 
+void Sidebar::showFileListContextMenu(const QPoint &position) {
+    clearPendingDirectoryClick();
+
+    auto *item = fileList_->itemAt(position);
+    if (item != nullptr) {
+        fileList_->setCurrentItem(item);
+    }
+
+    const auto bookPath = historyBookPathForItem(item);
+    const auto hasBookHistory = !bookPath.isEmpty() && historyEntryForPath(bookPath) != nullptr;
+
+    QMenu menu(this);
+    auto *deleteEntryAction = menu.addAction(tr("Delete history"));
+    deleteEntryAction->setEnabled(hasBookHistory);
+    auto *deleteCurrentFolderAction = menu.addAction(tr("Delete history in current folder"));
+    deleteCurrentFolderAction->setEnabled(!currentFolder_.isEmpty());
+
+    const auto *selectedAction = menu.exec(fileList_->viewport()->mapToGlobal(position));
+    if (selectedAction == deleteEntryAction && hasBookHistory) {
+        emit historyEntryDeleteRequested(bookPath);
+    } else if (selectedAction == deleteCurrentFolderAction && !currentFolder_.isEmpty()) {
+        emit currentFolderHistoryDeleteRequested(currentFolder_);
+    }
+}
+
 void Sidebar::openPendingDirectoryClick() {
     const auto folderPath = pendingDirectoryClickPath_;
     pendingDirectoryClickPath_.clear();
@@ -960,6 +999,32 @@ void Sidebar::updateArchiveSelection() {
                           !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
     }
     fileList_->viewport()->update();
+}
+
+QString Sidebar::historyBookPathForItem(const QListWidgetItem *item) const {
+    if (item == nullptr) {
+        return {};
+    }
+
+    const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+    const auto entryPath = item->data(entryPathRole).toString();
+    if (entryPath.isEmpty()) {
+        return {};
+    }
+
+    if (itemKind == SidebarItemKind::HistoryEntry) {
+        return QFileInfo(entryPath).absoluteFilePath();
+    }
+
+    const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+    switch (entryType) {
+    case EntryType::Directory:
+    case EntryType::Archive:
+        return QFileInfo(entryPath).absoluteFilePath();
+    case EntryType::Image:
+        return QFileInfo(entryPath).dir().absolutePath();
+    }
+    return {};
 }
 
 int Sidebar::readingState(EntryType entryType, const QString &path) const {

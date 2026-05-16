@@ -50,6 +50,8 @@ class Sidebar final : public QWidget {
     void archiveBookRequested(const QString &archivePath);
     void appSettingsChanged(const AppSettings &settings);
     void sidebarWidthChanged(int width);
+    void historyEntryDeleteRequested(const QString &bookPath);
+    void currentFolderHistoryDeleteRequested(const QString &folderPath);
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -73,6 +75,7 @@ class Sidebar final : public QWidget {
     void updateNavigationButtons();
     void handleItemClicked(QListWidgetItem *item);
     void handleItemDoubleClicked(QListWidgetItem *item);
+    void showFileListContextMenu(const QPoint &position);
     void openPendingDirectoryClick();
     void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);
@@ -80,6 +83,7 @@ class Sidebar final : public QWidget {
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     void updateFileListReadingStates();
     void updateArchiveSelection();
+    [[nodiscard]] QString historyBookPathForItem(const QListWidgetItem *item) const;
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
     void updateResizeCursor(const QPoint &position);
