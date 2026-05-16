@@ -19,30 +19,30 @@ When a supported image file is opened from the sidebar:
 1. Open its parent folder as a folder book.
 2. Set the current page to the clicked image.
 
-If a folder contains both images and ZIP/CBZ files:
+If a folder contains both images and archive files:
 
 - Images are pages of the folder book.
-- ZIP/CBZ files remain visible in the sidebar.
-- Clicking a ZIP/CBZ opens it as a separate book.
+- Archive files remain visible in the sidebar.
+- Clicking an archive file opens it as a separate book.
 
-### ZIP/CBZ books
+### Archive books
 
 Supported archive extensions:
 
 - `.zip`
 - `.cbz`
+- `.7z`
+- `.cb7`
 
 Unsupported in MVP:
 
 - `.rar`
 - `.cbr`
-- `.7z`
-- `.cb7`
 
-When a ZIP/CBZ book is open:
+When an archive book is open:
 
 - The sidebar shows the archive's parent folder.
-- The current ZIP/CBZ file is highlighted or selected.
+- The current archive file is highlighted or selected.
 
 ## Supported image formats
 
@@ -81,9 +81,11 @@ Expected order:
 Natural sorting applies to:
 
 - Folder image files.
-- ZIP/CBZ internal image entries.
+- Archive internal image entries.
 - Sidebar file list.
 
-For ZIP/CBZ archives, sort by the full internal archive path.
+For archives, sort by the full internal archive path.
 
 ZIP filename decoding should prefer UTF-8. Non-UTF-8 filenames may be treated as a known MVP limitation.
+
+7z filename decoding should prefer UTF-8.

@@ -19,12 +19,12 @@ It allows opening:
 
 - Directories.
 - Supported image files.
-- ZIP/CBZ files.
+- Archive files.
 
-When a ZIP/CBZ book is open:
+When an archive book is open:
 
-- The sidebar shows the ZIP/CBZ file's parent folder.
-- The current ZIP/CBZ file is highlighted or selected.
+- The sidebar shows the archive file's parent folder.
+- The current archive file is highlighted or selected.
 
 ### Sidebar display
 
@@ -54,7 +54,7 @@ The file list must show:
 
 - Directories.
 - Supported image files.
-- Supported ZIP/CBZ files.
+- Supported archive files.
 
 Each applicable entry should show a reading state icon:
 
@@ -80,12 +80,12 @@ Clicking a supported image file:
 - Opens the parent folder as a folder book.
 - Sets `currentPageIndex` to the clicked image.
 
-Clicking a ZIP/CBZ file:
+Clicking a ZIP/CBZ or 7z/CB7 file:
 
-- Opens the archive as a ZIP book.
+- Opens the archive as an archive book.
 - Restores `lastPageIndex` if history exists.
 - Otherwise sets `currentPageIndex` to 0.
-- Highlights the ZIP/CBZ file in the sidebar.
+- Highlights the archive file in the sidebar.
 
 ### Sidebar navigation
 

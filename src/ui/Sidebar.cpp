@@ -1,8 +1,8 @@
 #include "Sidebar.h"
 
 #include "IconUtils.h"
+#include "model/ArchiveBook.h"
 #include "model/FolderBook.h"
-#include "model/ZipBook.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
@@ -125,7 +125,7 @@ QImage loadFirstPageThumbnail(HistoryEntry entry) {
     if (entry.bookType == BookType::Folder) {
         book = std::make_unique<FolderBook>(entry.bookPath);
     } else {
-        book = std::make_unique<ZipBook>(entry.bookPath);
+        book = std::make_unique<ArchiveBook>(entry.bookPath);
     }
 
     if (!book || book->pageCount() <= 0) {

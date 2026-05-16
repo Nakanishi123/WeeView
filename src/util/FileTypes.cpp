@@ -26,7 +26,7 @@ bool isSupportedImageExtension(QStringView extension) {
 }
 
 bool isSupportedArchiveExtension(QStringView extension) {
-    static const QStringList extensions = {"zip", "cbz"};
+    static const QStringList extensions = {"zip", "cbz", "7z", "cb7"};
     return containsExtension(extensions, extension);
 }
 

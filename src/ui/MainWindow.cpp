@@ -2,8 +2,8 @@
 
 #include "app/AppSettingsStore.h"
 #include "image/ImageDecoder.h"
+#include "model/ArchiveBook.h"
 #include "model/FolderBook.h"
-#include "model/ZipBook.h"
 #include "ui/HeaderBar.h"
 #include "ui/MangaView.h"
 #include "ui/OverlayContainer.h"
@@ -219,7 +219,7 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
     cancelPageMetadataLoad();
     saveCurrentHistory();
 
-    auto book = std::make_unique<ZipBook>(archivePath);
+    auto book = std::make_unique<ArchiveBook>(archivePath);
     currentBook_ = std::move(book);
 
     const QFileInfo archiveInfo(archivePath);

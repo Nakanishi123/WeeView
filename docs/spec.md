@@ -20,7 +20,7 @@ WeeView is a cross-platform manga/image viewer for Windows and Linux.
 MVP goals:
 
 - Open image folders.
-- Open ZIP/CBZ archives.
+- Open ZIP/CBZ and 7z/CB7 archives.
 - Display images as pages.
 - Support single-page and spread-page viewing.
 - Support right-to-left and left-to-right reading.
@@ -37,6 +37,7 @@ Use:
 - Qt 6 Widgets
 - CMake
 - libzip for ZIP/CBZ
+- libarchive for 7z/CB7
 - JSON files for settings and history
 
 Do not use:
@@ -52,7 +53,7 @@ All UI must be created programmatically in C++.
 Included:
 
 - Folder books.
-- ZIP/CBZ books.
+- ZIP/CBZ and 7z/CB7 archive books.
 - JPEG, PNG, WebP, and AVIF images.
 - Natural sorting.
 - Single-page view.
@@ -69,7 +70,6 @@ Included:
 Excluded:
 
 - RAR/CBR.
-- 7z/CB7.
 - Manual zoom.
 - Pan.
 - Bookmarks.

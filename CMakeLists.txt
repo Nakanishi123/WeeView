@@ -15,6 +15,7 @@ find_package(Qt6 REQUIRED COMPONENTS Concurrent Widgets)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
+pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 qt_standard_project_setup()
 
@@ -50,6 +51,7 @@ target_link_libraries(weeview
     PRIVATE
         Qt6::Concurrent
         Qt6::Widgets
+        PkgConfig::LIBARCHIVE
         PkgConfig::LIBZIP
 )
 
