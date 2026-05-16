@@ -8,6 +8,7 @@
 #include "ui/MangaView.h"
 #include "ui/OverlayContainer.h"
 #include "ui/Sidebar.h"
+#include "util/FileTypes.h"
 
 #include <QCloseEvent>
 #include <QDateTime>
@@ -203,6 +204,37 @@ void MainWindow::showRestored() {
     }
 
     show();
+}
+
+bool MainWindow::openPath(const QString &path) {
+    if (path.trimmed().isEmpty()) {
+        return false;
+    }
+
+    const QFileInfo fileInfo(path);
+    if (fileInfo.isDir()) {
+        const auto folderPath = fileInfo.absoluteFilePath();
+        overlayContainer_->sidebar()->setCurrentFolder(folderPath);
+        openFolderBook(folderPath);
+        return true;
+    }
+
+    if (!fileInfo.isFile()) {
+        return false;
+    }
+
+    if (filetypes::isSupportedImageFile(fileInfo.fileName())) {
+        overlayContainer_->sidebar()->setCurrentFolder(fileInfo.dir().absolutePath());
+        openImageFile(fileInfo.absoluteFilePath());
+        return true;
+    }
+
+    if (filetypes::isSupportedArchiveFile(fileInfo.fileName())) {
+        openArchiveBook(fileInfo.absoluteFilePath());
+        return true;
+    }
+
+    return false;
 }
 
 void MainWindow::restoreWindowSettings() {

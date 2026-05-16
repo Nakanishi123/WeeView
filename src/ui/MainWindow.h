@@ -24,6 +24,7 @@ class MainWindow final : public QMainWindow {
   public:
     explicit MainWindow(QWidget *parent = nullptr);
     void showRestored();
+    bool openPath(const QString &path);
 
   protected:
     void changeEvent(QEvent *event) override;

@@ -8,6 +8,8 @@ On startup:
 - Do not automatically open the last book.
 - Show the configured home folder in the sidebar.
 - Keep the main image area empty until the user opens a folder, image file, or supported archive file.
+- If the application is launched with a supported folder, image file, or archive file path, open that path after the main
+  window is shown.
 
 If no home folder is configured, use the user's home directory as the sidebar home folder.
 
