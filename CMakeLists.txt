@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(WeeView
-    VERSION 1.0.4
+    VERSION 1.0.5
     DESCRIPTION "A lightweight manga viewer"
     LANGUAGES CXX
 )
