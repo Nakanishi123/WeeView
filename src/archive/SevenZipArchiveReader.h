@@ -3,8 +3,9 @@
 #include "archive/ArchiveReader.h"
 
 #include <QHash>
-#include <QStringList>
 
+#include <iterator>
+#include <list>
 #include <memory>
 
 struct archive;
@@ -31,14 +32,18 @@ class SevenZipArchiveReader final : public ArchiveReader {
     };
 
     [[nodiscard]] std::unique_ptr<archive, ArchiveDeleter> openArchive() const;
+    void scanEntries() const;
     [[nodiscard]] QByteArray cachedFile(const QString &entryPath) const;
     void cacheFile(const QString &entryPath, const QByteArray &data) const;
 
     QString archivePath_;
+    mutable QVector<ArchiveEntry> entries_;
     mutable QHash<QString, QByteArray> extractedFileCache_;
-    mutable QStringList extractedFileCacheOrder_;
+    mutable std::list<QString> extractedFileCacheOrder_;
+    mutable QHash<QString, std::list<QString>::iterator> extractedFileCachePositions_;
     mutable qsizetype extractedFileCacheBytes_ = 0;
-    bool canOpen_ = false;
+    mutable bool hasScannedEntries_ = false;
+    mutable bool canOpen_ = false;
 };
 
 } // namespace weeview

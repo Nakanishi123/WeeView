@@ -222,7 +222,7 @@ void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 
     QPainter painter(this);
-    painter.fillRect(rect(), checkerboardBrush());
+    painter.fillRect(event->rect(), checkerboardBrush());
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     const auto pageIndices = paintPageIndices();

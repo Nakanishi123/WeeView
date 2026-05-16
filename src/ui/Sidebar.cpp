@@ -877,12 +877,13 @@ void Sidebar::clearPendingDirectoryClick() {
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {
     auto *item = new QListWidgetItem(name, fileList_);
+    const auto absolutePath = QFileInfo(path).absoluteFilePath();
     item->setData(itemKindRole, static_cast<int>(SidebarItemKind::FileEntry));
     item->setData(entryTypeRole, static_cast<int>(entryType));
-    item->setData(entryPathRole, QFileInfo(path).absoluteFilePath());
-    item->setData(readingStateRole, readingState(entryType, path));
+    item->setData(entryPathRole, absolutePath);
+    item->setData(readingStateRole, readingState(entryType, absolutePath));
 
-    if (entryType == EntryType::Archive && QFileInfo(path).absoluteFilePath() == currentArchivePath_) {
+    if (entryType == EntryType::Archive && absolutePath == currentArchivePath_) {
         item->setSelected(true);
     }
 }
@@ -917,8 +918,7 @@ void Sidebar::loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId
                 continue;
             }
             const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
-            if (itemKind == SidebarItemKind::HistoryEntry &&
-                QFileInfo(item->data(entryPathRole).toString()).absoluteFilePath() == normalizedPath) {
+            if (itemKind == SidebarItemKind::HistoryEntry && item->data(entryPathRole).toString() == normalizedPath) {
                 item->setData(thumbnailImageRole, image);
                 fileList_->update(fileList_->model()->index(row, 0));
                 return;
@@ -955,7 +955,7 @@ void Sidebar::updateArchiveSelection() {
         }
         const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
         const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
-        const auto entryPath = QFileInfo(item->data(entryPathRole).toString()).absoluteFilePath();
+        const auto entryPath = item->data(entryPathRole).toString();
         item->setSelected(itemKind == SidebarItemKind::FileEntry && entryType == EntryType::Archive &&
                           !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
     }

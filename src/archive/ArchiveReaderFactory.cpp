@@ -10,6 +10,10 @@
 namespace weeview {
 namespace {
 
+bool isSevenZipSuffix(const QString &suffix) { return suffix == QLatin1String("7z") || suffix == QLatin1String("cb7"); }
+
+bool isZipSuffix(const QString &suffix) { return suffix == QLatin1String("zip") || suffix == QLatin1String("cbz"); }
+
 bool hasSevenZipSignature(const QString &archivePath) {
     QFile file(archivePath);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -25,7 +29,16 @@ bool hasSevenZipSignature(const QString &archivePath) {
 
 std::unique_ptr<ArchiveReader> createArchiveReader(const QString &archivePath) {
     const auto suffix = QFileInfo(archivePath).suffix().toLower();
-    if (hasSevenZipSignature(archivePath) || suffix == QLatin1String("7z") || suffix == QLatin1String("cb7")) {
+
+    if ((isSevenZipSuffix(suffix) || isZipSuffix(suffix)) && hasSevenZipSignature(archivePath)) {
+        return std::make_unique<SevenZipArchiveReader>(archivePath);
+    }
+
+    if (isSevenZipSuffix(suffix)) {
+        auto zipReader = std::make_unique<ZipArchiveReader>(archivePath);
+        if (zipReader->isOpen()) {
+            return zipReader;
+        }
         return std::make_unique<SevenZipArchiveReader>(archivePath);
     }
 
