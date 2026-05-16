@@ -11,6 +11,7 @@
 #include <memory>
 
 class QCloseEvent;
+class QEvent;
 class QTimer;
 
 namespace weeview {
@@ -25,9 +26,12 @@ class MainWindow final : public QMainWindow {
     void showRestored();
 
   protected:
+    void changeEvent(QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
   private:
+    void wireWindowControls();
+    void updateHeaderWindowState();
     void restoreWindowSettings();
     void saveAppSettings();
     void applyAppSettings(const AppSettings &settings);

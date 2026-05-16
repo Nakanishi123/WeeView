@@ -14,6 +14,31 @@
 
 namespace weeview {
 
+namespace {
+
+constexpr int resizeBorderWidth = 6;
+
+Qt::CursorShape cursorForResizeEdges(Qt::Edges edges) {
+    const auto horizontal = edges & (Qt::LeftEdge | Qt::RightEdge);
+    const auto vertical = edges & (Qt::TopEdge | Qt::BottomEdge);
+
+    if (horizontal && vertical) {
+        const auto topLeftOrBottomRight = (edges.testFlag(Qt::LeftEdge) && edges.testFlag(Qt::TopEdge)) ||
+                                          (edges.testFlag(Qt::RightEdge) && edges.testFlag(Qt::BottomEdge));
+        return topLeftOrBottomRight ? Qt::SizeFDiagCursor : Qt::SizeBDiagCursor;
+    }
+    if (horizontal) {
+        return Qt::SizeHorCursor;
+    }
+    if (vertical) {
+        return Qt::SizeVerCursor;
+    }
+
+    return Qt::ArrowCursor;
+}
+
+} // namespace
+
 OverlayContainer::OverlayContainer(QWidget *parent) : QWidget(parent) {
     setMouseTracking(true);
 
@@ -73,8 +98,23 @@ bool OverlayContainer::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseMove) {
         auto *mouseEvent = static_cast<QMouseEvent *>(event);
         if (auto *widget = qobject_cast<QWidget *>(watched)) {
-            handleMousePosition(widget->mapTo(this, mouseEvent->position().toPoint()));
+            const auto position = widget->mapTo(this, mouseEvent->position().toPoint());
+            updateResizeCursor(resizeEdgesAt(position));
+            handleMousePosition(position);
         }
+    } else if (event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            if (auto *widget = qobject_cast<QWidget *>(watched)) {
+                const auto edges = resizeEdgesAt(widget->mapTo(this, mouseEvent->position().toPoint()));
+                if (edges != Qt::Edges{}) {
+                    emit windowResizeRequested(edges);
+                    return true;
+                }
+            }
+        }
+    } else if (event->type() == QEvent::Leave) {
+        updateResizeCursor({});
     }
 
     return QWidget::eventFilter(watched, event);
@@ -141,6 +181,41 @@ void OverlayContainer::handleMousePosition(const QPoint &position) {
         sidebarHideTimer_->stop();
     } else if (sidebar_->isVisible() && !isSidebarActive(position)) {
         scheduleSidebarHide();
+    }
+}
+
+Qt::Edges OverlayContainer::resizeEdgesAt(const QPoint &position) const {
+    if (window()->isMaximized()) {
+        return {};
+    }
+
+    Qt::Edges edges;
+    if (position.x() < resizeBorderWidth) {
+        edges |= Qt::LeftEdge;
+    } else if (position.x() >= width() - resizeBorderWidth) {
+        edges |= Qt::RightEdge;
+    }
+
+    if (position.y() < resizeBorderWidth) {
+        edges |= Qt::TopEdge;
+    } else if (position.y() >= height() - resizeBorderWidth) {
+        edges |= Qt::BottomEdge;
+    }
+
+    return edges;
+}
+
+void OverlayContainer::updateResizeCursor(Qt::Edges edges) {
+    const auto cursorShape = cursorForResizeEdges(edges);
+    if (resizeCursorShape_ == cursorShape) {
+        return;
+    }
+
+    resizeCursorShape_ = cursorShape;
+    if (cursorShape == Qt::ArrowCursor) {
+        unsetCursor();
+    } else {
+        setCursor(cursorShape);
     }
 }
 

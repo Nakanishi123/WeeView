@@ -112,12 +112,17 @@ Display behavior:
 - Hidden by default.
 - Moving the mouse to the top edge shows the header.
 - Header overlays the image area.
+- The main window is frameless; the header provides the app's title-bar controls while visible.
+- Dragging the header moves the window.
+- Double-clicking the header toggles maximized/restored state.
+- The close button's hit target reaches the top-right corner while the header is visible.
 
 Required contents:
 
 - Current opened book path.
 - Single-page/spread toggle button.
 - Right-to-left/left-to-right toggle button.
+- Minimize, maximize/restore, and close buttons.
 
 Settings button is not required in the header.
 
@@ -162,6 +167,8 @@ Footer shows when the mouse is within 24 px of the bottom edge.
 Sidebar shows when the mouse is within 24 px of the left edge.
 
 Each overlay hides 800 ms after the mouse leaves its active area.
+
+The frameless main window remains resizable from its outer edges when it is not maximized.
 
 ## File operations
 

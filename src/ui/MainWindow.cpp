@@ -13,10 +13,12 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QEvent>
 #include <QFileInfo>
 #include <QSet>
 #include <QTimer>
 #include <QVector>
+#include <QWindow>
 
 #include <algorithm>
 #include <utility>
@@ -74,6 +76,7 @@ void trimHistoryEntries(QVector<HistoryEntry> &entries) {
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(QStringLiteral("WeeView"));
+    setWindowFlag(Qt::FramelessWindowHint, true);
 
     overlayContainer_ = new OverlayContainer(this);
     setCentralWidget(overlayContainer_);
@@ -102,6 +105,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     loadHistory();
     wireSidebar();
+    wireWindowControls();
+    updateHeaderWindowState();
+}
+
+void MainWindow::changeEvent(QEvent *event) {
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange) {
+        updateHeaderWindowState();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
@@ -112,6 +124,29 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     saveAppSettings();
     QMainWindow::closeEvent(event);
 }
+
+void MainWindow::wireWindowControls() {
+    auto *header = overlayContainer_->headerBar();
+    connect(header, &HeaderBar::minimizeRequested, this, &MainWindow::showMinimized);
+    connect(header, &HeaderBar::maximizeRestoreRequested, this, [this] {
+        if (isMaximized()) {
+            showNormal();
+        } else {
+            showMaximized();
+        }
+        updateHeaderWindowState();
+    });
+    connect(header, &HeaderBar::closeRequested, this, &MainWindow::close);
+    connect(overlayContainer_, &OverlayContainer::windowResizeRequested, this, [this](Qt::Edges edges) {
+        if (!isMaximized()) {
+            if (auto *handle = windowHandle(); handle != nullptr) {
+                handle->startSystemResize(edges);
+            }
+        }
+    });
+}
+
+void MainWindow::updateHeaderWindowState() { overlayContainer_->headerBar()->setWindowMaximized(isMaximized()); }
 
 void MainWindow::showRestored() {
     if (appSettings_.windowMaximized) {

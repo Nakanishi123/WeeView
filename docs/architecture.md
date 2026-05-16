@@ -112,7 +112,7 @@ Suggested high-level structure:
 - `MainWindow`: owns and wires major UI components.
 - `OverlayContainer`: positions the viewer and overlays.
 - `MangaView`: renders pages.
-- `HeaderBar`: top overlay controls.
+- `HeaderBar`: top overlay controls and frameless-window title controls.
 - `FooterBar`: page status and slider.
 - `Sidebar`: file browser.
 
