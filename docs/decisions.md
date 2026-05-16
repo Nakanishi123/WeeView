@@ -26,19 +26,21 @@ Do not use QSettings for MVP persistence.
 
 ### Archive support
 
-Use libzip.
+Use libzip for ZIP/CBZ.
+
+Use libarchive for 7z/CB7.
 
 MVP officially supports:
 
 - ZIP
 - CBZ
+- 7z
+- CB7
 
 Deferred:
 
 - RAR
 - CBR
-- 7z
-- CB7
 
 ### Image formats
 
@@ -127,7 +129,6 @@ Potential post-MVP features:
 - Configurable overlay behavior.
 - Configurable landscape threshold.
 - RAR/CBR support.
-- 7z/CB7 support.
 - Keybinding customization.
 - File operations such as delete/rename/move.
 - More robust ZIP filename encoding handling.

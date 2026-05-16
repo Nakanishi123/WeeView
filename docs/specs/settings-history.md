@@ -73,7 +73,7 @@ the most recent entry.
 Required history fields per book:
 
 - Book path.
-- Book type: folder or zip.
+- Book type: folder or archive.
 - Display name.
 - Last page index: logical first page index of the displayed group.
 - Last display last page index: logical last page index of the displayed group.

@@ -7,6 +7,7 @@
 #include <QWidget>
 
 class QComboBox;
+class QEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -51,6 +52,7 @@ class Sidebar final : public QWidget {
     void sidebarWidthChanged(int width);
 
   protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -76,8 +78,11 @@ class Sidebar final : public QWidget {
     void addEntry(EntryType entryType, const QString &name, const QString &path);
     void addHistoryEntry(const HistoryEntry &entry);
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
+    void updateFileListReadingStates();
+    void updateArchiveSelection();
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
+    void updateResizeCursor(const QPoint &position);
     [[nodiscard]] bool isResizeHandlePosition(const QPoint &position) const;
 
     QLabel *pathLabel_ = nullptr;

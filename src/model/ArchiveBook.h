@@ -1,16 +1,24 @@
 #pragma once
 
-#include "archive/ZipArchiveReader.h"
+#include "archive/ArchiveReader.h"
 #include "model/Book.h"
 
 #include <QString>
 #include <QVector>
 
+#include <memory>
+
 namespace weeview {
 
-class ZipBook final : public Book {
+class ArchiveBook final : public Book {
   public:
-    explicit ZipBook(QString archivePath);
+    explicit ArchiveBook(QString archivePath);
+    ~ArchiveBook() override;
+
+    ArchiveBook(const ArchiveBook &) = delete;
+    ArchiveBook &operator=(const ArchiveBook &) = delete;
+    ArchiveBook(ArchiveBook &&) noexcept;
+    ArchiveBook &operator=(ArchiveBook &&) noexcept;
 
     [[nodiscard]] BookType type() const override;
     [[nodiscard]] QString displayName() const override;
@@ -32,7 +40,7 @@ class ZipBook final : public Book {
 
     QString archivePath_;
     QString displayName_;
-    ZipArchiveReader reader_;
+    std::unique_ptr<ArchiveReader> reader_;
     QVector<Page> pages_;
 };
 

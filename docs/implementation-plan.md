@@ -190,24 +190,26 @@ Acceptance:
 - Right-to-left visual order for `[1, 2]` is `[2][1]`.
 - Left-to-right visual order for `[1, 2]` is `[1][2]`.
 
-## Step 10: ZIP/CBZ support
+## Step 10: Archive support
 
 Goal:
 
-- Open ZIP/CBZ as books.
+- Open ZIP/CBZ and 7z/CB7 as books.
 
 Tasks:
 
 - Add libzip dependency.
+- Add libarchive dependency.
 - Add RAII wrappers for libzip handles.
 - Add `ArchiveReader`.
 - Add `ZipArchiveReader`.
-- Add `ZipBook`.
+- Add `SevenZipArchiveReader`.
+- Add `ArchiveBook`.
 - Sort internal entries by full path using natural sort.
 
 Acceptance:
 
-- `.zip` and `.cbz` files open.
+- `.zip`, `.cbz`, `.7z`, and `.cb7` files open.
 - Internal image entries are displayed in natural order.
 - Unsupported internal files are ignored.
 
@@ -223,18 +225,18 @@ Tasks:
 - Show current folder path.
 - Add Home/Back/Forward/Up/Reload controls.
 - Add file list.
-- Show directories, supported image files, and ZIP/CBZ files.
+- Show directories, supported image files, and archive files.
 - Click directories to open them as folder books.
 - Double-click directories to navigate into them.
 - Click image files to open parent folder and jump to clicked image.
-- Click ZIP/CBZ files to open archive.
-- Highlight current ZIP/CBZ when an archive is open.
+- Click archive files to open archive.
+- Highlight current archive when an archive is open.
 
 Acceptance:
 
 - Startup shows configured home folder or user home directory.
 - Sidebar opens from the left edge.
-- Current archive's parent folder is shown when ZIP/CBZ is open.
+- Current archive's parent folder is shown when an archive is open.
 
 ## Step 12: History integration
 
@@ -250,7 +252,7 @@ Tasks:
 
 Acceptance:
 
-- Reopening a ZIP/CBZ restores `lastPageIndex` when history exists.
+- Reopening an archive restores `lastPageIndex` when history exists.
 - `lastPageIndex` is the logical first page index of the displayed group.
 - Sidebar shows unread/reading/completed state.
 

@@ -1,9 +1,10 @@
 #include "MangaView.h"
 
+#include <QBrush>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPalette>
+#include <QPixmap>
 #include <QRectF>
 #include <QWheelEvent>
 
@@ -14,15 +15,28 @@ namespace weeview {
 
 namespace {
 constexpr auto RightButtonGestureThreshold = 40.0;
+constexpr int checkerboardCellSize = 12;
+const QColor checkerboardBlack(0, 0, 0);
+const QColor checkerboardDarkGray(24, 24, 24);
+
+const QBrush &checkerboardBrush() {
+    static const QBrush brush = [] {
+        QPixmap pattern(checkerboardCellSize * 2, checkerboardCellSize * 2);
+        pattern.fill(checkerboardBlack);
+
+        QPainter painter(&pattern);
+        painter.fillRect(0, 0, checkerboardCellSize, checkerboardCellSize, checkerboardDarkGray);
+        painter.fillRect(checkerboardCellSize, checkerboardCellSize, checkerboardCellSize, checkerboardCellSize,
+                         checkerboardDarkGray);
+        return QBrush(pattern);
+    }();
+    return brush;
 }
+} // namespace
 
 MangaView::MangaView(QWidget *parent) : QWidget(parent) {
-    setAutoFillBackground(true);
+    setAutoFillBackground(false);
     setFocusPolicy(Qt::StrongFocus);
-
-    auto viewPalette = palette();
-    viewPalette.setColor(QPalette::Window, Qt::black);
-    setPalette(viewPalette);
 }
 
 void MangaView::setImage(QImage image) {
@@ -208,6 +222,7 @@ void MangaView::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 
     QPainter painter(this);
+    painter.fillRect(event->rect(), checkerboardBrush());
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     const auto pageIndices = paintPageIndices();

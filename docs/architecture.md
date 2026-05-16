@@ -31,7 +31,7 @@ Behavioral requirements live under [`spec.md`](./spec.md). If this document conf
 ```text
 src/
   app/        settings, history, application services
-  archive/    archive reader abstractions and ZIP implementation
+  archive/    archive reader abstractions and archive implementations
   image/      image decoder and image cache
   model/      book/page models
   ui/         widgets and overlays
@@ -45,7 +45,7 @@ Keep these types small and easy to serialize where applicable.
 
 - `ViewMode`: single page or spread.
 - `ReadingDirection`: right-to-left or left-to-right.
-- `BookType`: folder or zip.
+- `BookType`: folder or archive.
 - `PageInfo`: image name, display path, image size, and landscape flag.
 - `ViewerState`: current page index, current display group end, view mode, reading direction, and spread group direction.
 - `HistoryEntry`: persisted reading progress for a book.
@@ -67,7 +67,7 @@ Required responsibilities:
 MVP implementations:
 
 - `FolderBook`
-- `ZipBook`
+- `ArchiveBook`
 
 ## Archive layer
 
@@ -76,8 +76,9 @@ Use an archive abstraction so future archive formats can be added without changi
 MVP implementation:
 
 - `ZipArchiveReader`, backed by libzip.
+- `SevenZipArchiveReader`, backed by libarchive.
 
-RAR/7z are not part of MVP.
+RAR is not part of MVP.
 
 ## Image decoder layer
 
@@ -136,4 +137,9 @@ For libzip:
 
 - Archive handles must be closed or discarded safely.
 - Entry handles must be closed safely.
+- Error paths must not leak handles.
+
+For libarchive:
+
+- Archive handles must be freed safely.
 - Error paths must not leak handles.

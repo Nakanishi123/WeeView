@@ -4,6 +4,8 @@
 
 A page is one image.
 
+The viewer background is a black and dark gray checkerboard so transparent image areas are visible.
+
 A page is landscape when `width > height`.
 
 Landscape pages are displayed as single pages in spread mode.

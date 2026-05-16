@@ -1,14 +1,16 @@
 #include "Sidebar.h"
 
 #include "IconUtils.h"
+#include "model/ArchiveBook.h"
 #include "model/FolderBook.h"
-#include "model/ZipBook.h"
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCursor>
 #include <QDir>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -36,6 +38,7 @@
 #include <QtConcurrent>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 
 namespace weeview {
@@ -64,10 +67,12 @@ constexpr int entryHorizontalPadding = 6;
 constexpr int entryVerticalPadding = 3;
 constexpr int entryTextGap = 8;
 constexpr int statusIconReservedWidth = 24;
+constexpr int fileListFontPointSizeIncrease = 1;
 constexpr int resizeHandleWidth = 8;
 constexpr int minimumSidebarWidth = 220;
 constexpr int maximumSidebarWidth = 720;
 const QColor iconColor(245, 245, 245);
+const QColor folderIconColor(244, 190, 72);
 const QColor statusIconColor(210, 230, 255);
 
 enum class ReadingState {
@@ -122,7 +127,7 @@ QImage loadFirstPageThumbnail(HistoryEntry entry) {
     if (entry.bookType == BookType::Folder) {
         book = std::make_unique<FolderBook>(entry.bookPath);
     } else {
-        book = std::make_unique<ZipBook>(entry.bookPath);
+        book = std::make_unique<ArchiveBook>(entry.bookPath);
     }
 
     if (!book || book->pageCount() <= 0) {
@@ -140,7 +145,7 @@ QImage loadFirstPageThumbnail(HistoryEntry entry) {
 QIcon entryIcon(Sidebar::EntryType entryType) {
     switch (entryType) {
     case Sidebar::EntryType::Directory:
-        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), folderIconColor, entryIconSize, 0);
     case Sidebar::EntryType::Image:
         return icons::tintedSvgIcon(QStringLiteral(":/assets/postcard.svg"), iconColor, entryIconSize, 0);
     case Sidebar::EntryType::Archive:
@@ -151,7 +156,7 @@ QIcon entryIcon(Sidebar::EntryType entryType) {
 
 QIcon bookTypeIcon(BookType bookType) {
     if (bookType == BookType::Folder) {
-        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), folderIconColor, entryIconSize, 0);
     }
     return icons::tintedSvgIcon(QStringLiteral(":/assets/book_closed.svg"), iconColor, entryIconSize, 0);
 }
@@ -167,6 +172,18 @@ QIcon readingStateIcon(ReadingState readingState) {
         return {};
     }
     return {};
+}
+
+QRect visibleItemRect(const QStyleOptionViewItem &option) {
+    auto rect = option.rect;
+    if (option.widget == nullptr) {
+        return rect;
+    }
+
+    const auto viewportRect = option.widget->rect();
+    rect.setLeft(std::max(rect.left(), viewportRect.left()));
+    rect.setRight(std::min(rect.right(), viewportRect.right()));
+    return rect;
 }
 
 class SidebarItemDelegate final : public QStyledItemDelegate {
@@ -203,8 +220,8 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
         auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
         style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
 
-        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, entryVerticalPadding,
-                                                      -entryHorizontalPadding, -entryVerticalPadding);
+        const auto contentRect = visibleItemRect(option).adjusted(entryHorizontalPadding, entryVerticalPadding,
+                                                                  -entryHorizontalPadding, -entryVerticalPadding);
         const auto iconRect =
             QRect(contentRect.left(), contentRect.top() + ((contentRect.height() - entryIconSize) / 2), entryIconSize,
                   entryIconSize);
@@ -243,7 +260,8 @@ class SidebarItemDelegate final : public QStyledItemDelegate {
         auto *style = viewOption.widget != nullptr ? viewOption.widget->style() : QApplication::style();
         style->drawControl(QStyle::CE_ItemViewItem, &viewOption, painter, viewOption.widget);
 
-        const auto contentRect = option.rect.adjusted(entryHorizontalPadding, 8, -entryHorizontalPadding, -8);
+        const auto contentRect =
+            visibleItemRect(option).adjusted(entryHorizontalPadding, 8, -entryHorizontalPadding, -8);
         const auto thumbnailRect =
             QRect(contentRect.left(), contentRect.top(), historyThumbnailWidth, historyThumbnailHeight);
         painter->save();
@@ -333,7 +351,19 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
     settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
     fileList_ = new QListWidget(this);
+    fileList_->setMouseTracking(true);
+    fileList_->viewport()->setMouseTracking(true);
     fileList_->setItemDelegate(new SidebarItemDelegate(fileList_));
+    fileList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    fileList_->setTextElideMode(Qt::ElideRight);
+    fileList_->setWordWrap(false);
+    auto fileListFont = fileList_->font();
+    if (fileListFont.pointSize() > 0) {
+        fileListFont.setPointSize(fileListFont.pointSize() + fileListFontPointSizeIncrease);
+    } else if (fileListFont.pixelSize() > 0) {
+        fileListFont.setPixelSize(fileListFont.pixelSize() + fileListFontPointSizeIncrease);
+    }
+    fileList_->setFont(fileListFont);
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(fileList_);
 
@@ -344,6 +374,15 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     settingsScrollArea->setWidget(settingsPanel_);
     contentStack_->addWidget(settingsScrollArea);
     populateSettingsPanel();
+
+    const std::array<QWidget *, 13> cursorUpdateWidgets = {
+        pathLabel_,    homeButton_,           backButton_,        forwardButton_,
+        upButton_,     historyButton_,        settingsButton_,    contentStack_,
+        fileList_,     fileList_->viewport(), settingsScrollArea, settingsScrollArea->viewport(),
+        settingsPanel_};
+    for (auto *widget : cursorUpdateWidgets) {
+        widget->installEventFilter(this);
+    }
 
     pendingDirectoryClickTimer_ = new QTimer(this);
     pendingDirectoryClickTimer_->setSingleShot(true);
@@ -389,7 +428,7 @@ void Sidebar::setCurrentFolder(const QString &folderPath) { navigateToFolder(fol
 
 void Sidebar::setCurrentArchivePath(const QString &archivePath) {
     currentArchivePath_ = archivePath.isEmpty() ? QString() : QFileInfo(archivePath).absoluteFilePath();
-    populateFileList();
+    updateArchiveSelection();
 }
 
 void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
@@ -397,7 +436,7 @@ void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
     if (showingHistory_) {
         populateHistoryList();
     } else if (!showingSettings_) {
-        populateFileList();
+        updateFileListReadingStates();
     }
 }
 
@@ -447,6 +486,15 @@ QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 
 int Sidebar::sidebarWidth() const { return width(); }
 
+bool Sidebar::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Enter || event->type() == QEvent::MouseMove) {
+        updateResizeCursor(mapFromGlobal(QCursor::pos()));
+    }
+
+    Q_UNUSED(watched);
+    return QWidget::eventFilter(watched, event);
+}
+
 void Sidebar::mouseMoveEvent(QMouseEvent *event) {
     if (resizing_) {
         const auto delta = event->globalPosition().toPoint().x() - resizeStartGlobalX_;
@@ -455,12 +503,7 @@ void Sidebar::mouseMoveEvent(QMouseEvent *event) {
         return;
     }
 
-    if (isResizeHandlePosition(event->position().toPoint())) {
-        setCursor(Qt::SizeHorCursor);
-    } else {
-        unsetCursor();
-    }
-
+    updateResizeCursor(event->position().toPoint());
     QWidget::mouseMoveEvent(event);
 }
 
@@ -492,13 +535,20 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
 
 void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     clearPendingDirectoryClick();
+    const auto wasShowingAlternateView = showingHistory_ || showingSettings_;
     showingHistory_ = false;
     showingSettings_ = false;
     ++historyThumbnailGeneration_;
 
     const auto normalized = normalizedFolderPath(folderPath);
     if (currentFolder_ == normalized) {
-        populateFileList();
+        if (wasShowingAlternateView || contentStack_->currentIndex() != 0) {
+            populateFileList();
+        } else {
+            contentStack_->setCurrentIndex(0);
+            pathLabel_->setText(currentFolder_);
+        }
+        updateNavigationButtons();
         return;
     }
 
@@ -827,12 +877,13 @@ void Sidebar::clearPendingDirectoryClick() {
 
 void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &path) {
     auto *item = new QListWidgetItem(name, fileList_);
+    const auto absolutePath = QFileInfo(path).absoluteFilePath();
     item->setData(itemKindRole, static_cast<int>(SidebarItemKind::FileEntry));
     item->setData(entryTypeRole, static_cast<int>(entryType));
-    item->setData(entryPathRole, QFileInfo(path).absoluteFilePath());
-    item->setData(readingStateRole, readingState(entryType, path));
+    item->setData(entryPathRole, absolutePath);
+    item->setData(readingStateRole, readingState(entryType, absolutePath));
 
-    if (entryType == EntryType::Archive && QFileInfo(path).absoluteFilePath() == currentArchivePath_) {
+    if (entryType == EntryType::Archive && absolutePath == currentArchivePath_) {
         item->setSelected(true);
     }
 }
@@ -867,8 +918,7 @@ void Sidebar::loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId
                 continue;
             }
             const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
-            if (itemKind == SidebarItemKind::HistoryEntry &&
-                QFileInfo(item->data(entryPathRole).toString()).absoluteFilePath() == normalizedPath) {
+            if (itemKind == SidebarItemKind::HistoryEntry && item->data(entryPathRole).toString() == normalizedPath) {
                 item->setData(thumbnailImageRole, image);
                 fileList_->update(fileList_->model()->index(row, 0));
                 return;
@@ -876,6 +926,40 @@ void Sidebar::loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId
         }
     });
     watcher->setFuture(QtConcurrent::run(loadFirstPageThumbnail, entry));
+}
+
+void Sidebar::updateFileListReadingStates() {
+    for (int row = 0; row < fileList_->count(); ++row) {
+        auto *item = fileList_->item(row);
+        if (item == nullptr) {
+            continue;
+        }
+        const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+        if (itemKind != SidebarItemKind::FileEntry) {
+            continue;
+        }
+
+        const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+        const auto entryPath = item->data(entryPathRole).toString();
+        item->setData(readingStateRole, readingState(entryType, entryPath));
+    }
+    fileList_->viewport()->update();
+}
+
+void Sidebar::updateArchiveSelection() {
+    const QSignalBlocker blocker(fileList_);
+    for (int row = 0; row < fileList_->count(); ++row) {
+        auto *item = fileList_->item(row);
+        if (item == nullptr) {
+            continue;
+        }
+        const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+        const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
+        const auto entryPath = item->data(entryPathRole).toString();
+        item->setSelected(itemKind == SidebarItemKind::FileEntry && entryType == EntryType::Archive &&
+                          !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
+    }
+    fileList_->viewport()->update();
 }
 
 int Sidebar::readingState(EntryType entryType, const QString &path) const {
@@ -912,6 +996,15 @@ const HistoryEntry *Sidebar::historyEntryForPath(const QString &bookPath) const 
         }
     }
     return nullptr;
+}
+
+void Sidebar::updateResizeCursor(const QPoint &position) {
+    if (resizing_ || isResizeHandlePosition(position)) {
+        setCursor(Qt::SizeHorCursor);
+        return;
+    }
+
+    unsetCursor();
 }
 
 bool Sidebar::isResizeHandlePosition(const QPoint &position) const {

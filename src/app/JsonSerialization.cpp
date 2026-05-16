@@ -152,8 +152,8 @@ QString toJsonString(BookType bookType) {
     switch (bookType) {
     case BookType::Folder:
         return QStringLiteral("folder");
-    case BookType::Zip:
-        return QStringLiteral("zip");
+    case BookType::Archive:
+        return QStringLiteral("archive");
     }
     return QStringLiteral("folder");
 }
@@ -192,8 +192,8 @@ BookType bookTypeFromJsonString(const QString &value, BookType fallback) {
     if (value == QLatin1String("folder")) {
         return BookType::Folder;
     }
-    if (value == QLatin1String("zip")) {
-        return BookType::Zip;
+    if (value == QLatin1String("archive") || value == QLatin1String("zip")) {
+        return BookType::Archive;
     }
     return fallback;
 }

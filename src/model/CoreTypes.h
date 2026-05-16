@@ -18,7 +18,7 @@ enum class ReadingDirection {
 
 enum class BookType {
     Folder,
-    Zip,
+    Archive,
 };
 
 enum class SpreadGroupDirection {
