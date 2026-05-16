@@ -67,10 +67,12 @@ constexpr int entryHorizontalPadding = 6;
 constexpr int entryVerticalPadding = 3;
 constexpr int entryTextGap = 8;
 constexpr int statusIconReservedWidth = 24;
+constexpr int fileListFontPointSizeIncrease = 1;
 constexpr int resizeHandleWidth = 8;
 constexpr int minimumSidebarWidth = 220;
 constexpr int maximumSidebarWidth = 720;
 const QColor iconColor(245, 245, 245);
+const QColor folderIconColor(244, 190, 72);
 const QColor statusIconColor(210, 230, 255);
 
 enum class ReadingState {
@@ -143,7 +145,7 @@ QImage loadFirstPageThumbnail(HistoryEntry entry) {
 QIcon entryIcon(Sidebar::EntryType entryType) {
     switch (entryType) {
     case Sidebar::EntryType::Directory:
-        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), folderIconColor, entryIconSize, 0);
     case Sidebar::EntryType::Image:
         return icons::tintedSvgIcon(QStringLiteral(":/assets/postcard.svg"), iconColor, entryIconSize, 0);
     case Sidebar::EntryType::Archive:
@@ -154,7 +156,7 @@ QIcon entryIcon(Sidebar::EntryType entryType) {
 
 QIcon bookTypeIcon(BookType bookType) {
     if (bookType == BookType::Folder) {
-        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), iconColor, entryIconSize, 0);
+        return icons::tintedSvgIcon(QStringLiteral(":/assets/folder_closed.svg"), folderIconColor, entryIconSize, 0);
     }
     return icons::tintedSvgIcon(QStringLiteral(":/assets/book_closed.svg"), iconColor, entryIconSize, 0);
 }
@@ -355,6 +357,13 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     fileList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     fileList_->setTextElideMode(Qt::ElideRight);
     fileList_->setWordWrap(false);
+    auto fileListFont = fileList_->font();
+    if (fileListFont.pointSize() > 0) {
+        fileListFont.setPointSize(fileListFont.pointSize() + fileListFontPointSizeIncrease);
+    } else if (fileListFont.pixelSize() > 0) {
+        fileListFont.setPixelSize(fileListFont.pixelSize() + fileListFontPointSizeIncrease);
+    }
+    fileList_->setFont(fileListFont);
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(fileList_);
 
