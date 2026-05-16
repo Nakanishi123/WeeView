@@ -67,6 +67,7 @@ class Sidebar final : public QWidget {
     void navigateUp();
     void showHistory();
     void showSettings();
+    void showSortMenu();
     void populateFileList();
     void populateHistoryList();
     void populateSettingsPanel();
@@ -83,6 +84,9 @@ class Sidebar final : public QWidget {
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     void updateFileListReadingStates();
     void updateArchiveSelection();
+    void applySortSettingsForCurrentFolder();
+    void saveSortSettingsForCurrentFolder();
+    void updateSortButtonText();
     [[nodiscard]] QString historyBookPathForItem(const QListWidgetItem *item) const;
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
@@ -96,6 +100,7 @@ class Sidebar final : public QWidget {
     QPushButton *upButton_ = nullptr;
     QPushButton *historyButton_ = nullptr;
     QPushButton *settingsButton_ = nullptr;
+    QPushButton *sortButton_ = nullptr;
     QStackedWidget *contentStack_ = nullptr;
     QListWidget *fileList_ = nullptr;
     QWidget *settingsPanel_ = nullptr;
@@ -117,6 +122,8 @@ class Sidebar final : public QWidget {
     QStringList backStack_;
     QStringList forwardStack_;
     QVector<HistoryEntry> historyEntries_;
+    SidebarSortKey sortKey_ = SidebarSortKey::FileName;
+    SidebarSortOrder sortOrder_ = SidebarSortOrder::Ascending;
     bool showingHistory_ = false;
     bool showingSettings_ = false;
     bool updatingSettingsControls_ = false;

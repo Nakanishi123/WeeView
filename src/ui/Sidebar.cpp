@@ -6,10 +6,12 @@
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCursor>
+#include <QDateTime>
 #include <QDir>
 #include <QEvent>
 #include <QFileDialog>
@@ -88,6 +90,14 @@ enum class SidebarItemKind {
     HistoryEntry,
 };
 
+struct FileListEntry {
+    Sidebar::EntryType entryType;
+    QString name;
+    QString path;
+    QDateTime createdAt;
+    QDateTime modifiedAt;
+};
+
 QString normalizedFolderPath(const QString &folderPath) {
     const QFileInfo info(folderPath);
     return info.isDir() ? info.absoluteFilePath() : QDir::homePath();
@@ -109,6 +119,14 @@ QString progressText(const HistoryEntry &entry) {
         return {};
     }
     return QStringLiteral("%1 / %2").arg(std::min(entry.lastPageIndex + 1, entry.pageCount)).arg(entry.pageCount);
+}
+
+QDateTime sortableCreatedAt(const QFileInfo &fileInfo) {
+    const auto createdAt = fileInfo.birthTime();
+    if (createdAt.isValid()) {
+        return createdAt;
+    }
+    return fileInfo.metadataChangeTime();
 }
 
 ReadingState readingStateForHistoryEntry(const HistoryEntry &entry) {
@@ -352,6 +370,12 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
     historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
     settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
+    sortButton_ = new QPushButton(this);
+    sortButton_->setFocusPolicy(Qt::NoFocus);
+    sortButton_->setToolTip(tr("Change file list sort order"));
+    sortButton_->setAccessibleName(tr("File list sort order"));
+    updateSortButtonText();
+
     fileList_ = new QListWidget(this);
     fileList_->setMouseTracking(true);
     fileList_->viewport()->setMouseTracking(true);
@@ -378,11 +402,20 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     contentStack_->addWidget(settingsScrollArea);
     populateSettingsPanel();
 
-    const std::array<QWidget *, 13> cursorUpdateWidgets = {
-        pathLabel_,    homeButton_,           backButton_,        forwardButton_,
-        upButton_,     historyButton_,        settingsButton_,    contentStack_,
-        fileList_,     fileList_->viewport(), settingsScrollArea, settingsScrollArea->viewport(),
-        settingsPanel_};
+    const std::array<QWidget *, 14> cursorUpdateWidgets = {pathLabel_,
+                                                           homeButton_,
+                                                           backButton_,
+                                                           forwardButton_,
+                                                           upButton_,
+                                                           historyButton_,
+                                                           settingsButton_,
+                                                           sortButton_,
+                                                           contentStack_,
+                                                           fileList_,
+                                                           fileList_->viewport(),
+                                                           settingsScrollArea,
+                                                           settingsScrollArea->viewport(),
+                                                           settingsPanel_};
     for (auto *widget : cursorUpdateWidgets) {
         widget->installEventFilter(this);
     }
@@ -405,6 +438,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(8);
     layout->addWidget(pathLabel_);
     layout->addLayout(buttonLayout);
+    layout->addWidget(sortButton_);
     layout->addWidget(contentStack_, 1);
 
     connect(homeButton_, &QPushButton::clicked, this, &Sidebar::navigateHome);
@@ -413,6 +447,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     connect(upButton_, &QPushButton::clicked, this, &Sidebar::navigateUp);
     connect(historyButton_, &QPushButton::clicked, this, &Sidebar::showHistory);
     connect(settingsButton_, &QPushButton::clicked, this, &Sidebar::showSettings);
+    connect(sortButton_, &QPushButton::clicked, this, &Sidebar::showSortMenu);
     connect(fileList_, &QListWidget::itemClicked, this, &Sidebar::handleItemClicked);
     connect(fileList_, &QListWidget::itemDoubleClicked, this, &Sidebar::handleItemDoubleClicked);
     connect(fileList_->viewport(), &QWidget::customContextMenuRequested, this, &Sidebar::showFileListContextMenu);
@@ -466,6 +501,11 @@ void Sidebar::setAppSettings(const AppSettings &settings) {
     imageCacheMemoryLimitSpin_->setValue(appSettings_.imageCacheMemoryLimitMiB);
     sidebarWidthSpin_->setValue(appSettings_.sidebarWidth);
     updatingSettingsControls_ = false;
+    applySortSettingsForCurrentFolder();
+    updateSortButtonText();
+    if (!showingHistory_ && !showingSettings_ && !currentFolder_.isEmpty()) {
+        populateFileList();
+    }
 }
 
 void Sidebar::setSidebarWidth(int width) {
@@ -572,6 +612,7 @@ void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     }
 
     currentFolder_ = normalized;
+    applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
     updateNavigationButtons();
@@ -586,6 +627,7 @@ void Sidebar::navigateBack() {
 
     forwardStack_.append(currentFolder_);
     currentFolder_ = backStack_.takeLast();
+    applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
     updateNavigationButtons();
@@ -598,6 +640,7 @@ void Sidebar::navigateForward() {
 
     backStack_.append(currentFolder_);
     currentFolder_ = forwardStack_.takeLast();
+    applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
     updateNavigationButtons();
@@ -629,14 +672,44 @@ void Sidebar::showSettings() {
     showingSettings_ = true;
     ++historyThumbnailGeneration_;
     pathLabel_->setText(tr("Settings"));
+    sortButton_->hide();
     contentStack_->setCurrentIndex(1);
     updateNavigationButtons();
+}
+
+void Sidebar::showSortMenu() {
+    QMenu menu(this);
+
+    const auto addSortAction = [this, &menu](const QString &label, SidebarSortKey key, SidebarSortOrder order) {
+        auto *action = menu.addAction(label);
+        action->setCheckable(true);
+        action->setChecked(sortKey_ == key && sortOrder_ == order);
+        connect(action, &QAction::triggered, this, [this, key, order]() {
+            sortKey_ = key;
+            sortOrder_ = order;
+            updateSortButtonText();
+            saveSortSettingsForCurrentFolder();
+            populateFileList();
+        });
+    };
+
+    addSortAction(tr("↑ ファイル名"), SidebarSortKey::FileName, SidebarSortOrder::Ascending);
+    addSortAction(tr("↓ ファイル名"), SidebarSortKey::FileName, SidebarSortOrder::Descending);
+    menu.addSeparator();
+    addSortAction(tr("↑ 作成日"), SidebarSortKey::CreatedAt, SidebarSortOrder::Ascending);
+    addSortAction(tr("↓ 作成日"), SidebarSortKey::CreatedAt, SidebarSortOrder::Descending);
+    menu.addSeparator();
+    addSortAction(tr("↑ 更新日"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Ascending);
+    addSortAction(tr("↓ 更新日"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Descending);
+
+    menu.exec(sortButton_->mapToGlobal(QPoint(0, sortButton_->height())));
 }
 
 void Sidebar::populateFileList() {
     showingHistory_ = false;
     showingSettings_ = false;
     ++historyThumbnailGeneration_;
+    sortButton_->show();
     contentStack_->setCurrentIndex(0);
     fileList_->clear();
     pathLabel_->setText(currentFolder_);
@@ -645,27 +718,63 @@ void Sidebar::populateFileList() {
     const auto entries =
         directory.entryInfoList(QDir::Dirs | QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::NoSort);
 
-    QStringList directoryNames;
-    QStringList fileNames;
+    QVector<FileListEntry> directoryEntries;
+    QVector<FileListEntry> fileEntries;
     for (const auto &entry : entries) {
+        const auto item = FileListEntry{
+            entry.isDir()
+                ? EntryType::Directory
+                : (filetypes::isSupportedArchiveFile(entry.fileName()) ? EntryType::Archive : EntryType::Image),
+            entry.fileName(),
+            entry.absoluteFilePath(),
+            sortableCreatedAt(entry),
+            entry.lastModified(),
+        };
+
         if (entry.isDir()) {
-            directoryNames.append(entry.fileName());
+            directoryEntries.append(item);
         } else if (filetypes::isSupportedImageFile(entry.fileName()) ||
                    filetypes::isSupportedArchiveFile(entry.fileName())) {
-            fileNames.append(entry.fileName());
+            fileEntries.append(item);
         }
     }
 
-    naturalsort::sort(directoryNames);
-    naturalsort::sort(fileNames);
+    const auto sortEntries = [this](QVector<FileListEntry> &items) {
+        std::sort(items.begin(), items.end(), [this](const FileListEntry &left, const FileListEntry &right) {
+            auto result = 0;
+            switch (sortKey_) {
+            case SidebarSortKey::FileName:
+                result = naturalsort::lessThan(left.name, right.name)
+                             ? -1
+                             : (naturalsort::lessThan(right.name, left.name) ? 1 : 0);
+                break;
+            case SidebarSortKey::CreatedAt:
+                result = left.createdAt < right.createdAt ? -1 : (right.createdAt < left.createdAt ? 1 : 0);
+                break;
+            case SidebarSortKey::ModifiedAt:
+                result = left.modifiedAt < right.modifiedAt ? -1 : (right.modifiedAt < left.modifiedAt ? 1 : 0);
+                break;
+            }
 
-    for (const auto &name : directoryNames) {
-        addEntry(EntryType::Directory, name, directory.absoluteFilePath(name));
+            if (result == 0) {
+                result = naturalsort::lessThan(left.name, right.name)
+                             ? -1
+                             : (naturalsort::lessThan(right.name, left.name) ? 1 : 0);
+            }
+
+            return sortOrder_ == SidebarSortOrder::Ascending ? result < 0 : result > 0;
+        });
+    };
+
+    sortEntries(directoryEntries);
+    sortEntries(fileEntries);
+
+    for (const auto &entry : directoryEntries) {
+        addEntry(entry.entryType, entry.name, entry.path);
     }
 
-    for (const auto &name : fileNames) {
-        const auto path = directory.absoluteFilePath(name);
-        addEntry(filetypes::isSupportedArchiveFile(name) ? EntryType::Archive : EntryType::Image, name, path);
+    for (const auto &entry : fileEntries) {
+        addEntry(entry.entryType, entry.name, entry.path);
     }
 
     updateNavigationButtons();
@@ -676,6 +785,7 @@ void Sidebar::populateHistoryList() {
     showingHistory_ = true;
     showingSettings_ = false;
     const auto requestId = ++historyThumbnailGeneration_;
+    sortButton_->hide();
     contentStack_->setCurrentIndex(0);
     fileList_->clear();
     pathLabel_->setText(tr("History"));
@@ -999,6 +1109,46 @@ void Sidebar::updateArchiveSelection() {
                           !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
     }
     fileList_->viewport()->update();
+}
+
+void Sidebar::applySortSettingsForCurrentFolder() {
+    const auto normalized = currentFolder_.isEmpty() ? QString() : QFileInfo(currentFolder_).absoluteFilePath();
+    const auto settings = appSettings_.sidebarFolderSorts.value(normalized);
+    sortKey_ = settings.key;
+    sortOrder_ = settings.order;
+    updateSortButtonText();
+}
+
+void Sidebar::saveSortSettingsForCurrentFolder() {
+    if (currentFolder_.isEmpty()) {
+        return;
+    }
+
+    const auto normalized = QFileInfo(currentFolder_).absoluteFilePath();
+    if (sortKey_ == SidebarSortKey::FileName && sortOrder_ == SidebarSortOrder::Ascending) {
+        appSettings_.sidebarFolderSorts.remove(normalized);
+    } else {
+        appSettings_.sidebarFolderSorts.insert(normalized, SidebarSortSettings{sortKey_, sortOrder_});
+    }
+    emit appSettingsChanged(appSettings_);
+}
+
+void Sidebar::updateSortButtonText() {
+    QString keyText;
+    switch (sortKey_) {
+    case SidebarSortKey::FileName:
+        keyText = tr("ファイル名");
+        break;
+    case SidebarSortKey::CreatedAt:
+        keyText = tr("作成日");
+        break;
+    case SidebarSortKey::ModifiedAt:
+        keyText = tr("更新日");
+        break;
+    }
+
+    const auto arrow = sortOrder_ == SidebarSortOrder::Ascending ? QStringLiteral("↑") : QStringLiteral("↓");
+    sortButton_->setText(QStringLiteral("%1 %2").arg(arrow, keyText));
 }
 
 QString Sidebar::historyBookPathForItem(const QListWidgetItem *item) const {

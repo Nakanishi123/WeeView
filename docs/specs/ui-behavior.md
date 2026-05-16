@@ -46,6 +46,7 @@ The sidebar must include:
 - Up directory button.
 - History button.
 - Settings button.
+- Sort button.
 - File list.
 
 ### File list entries
@@ -55,6 +56,10 @@ The file list must show:
 - Directories.
 - Supported image files.
 - Supported archive files.
+
+The sort button sits below the navigation/settings buttons and opens a menu for changing file list sort order. It shows
+the current direction and key, for example `↑ ファイル名`. Available sort keys are filename, created date, and modified
+date, each with ascending and descending order.
 
 Each applicable entry should show a reading state icon:
 

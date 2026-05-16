@@ -82,7 +82,9 @@ Natural sorting applies to:
 
 - Folder image files.
 - Archive internal image entries.
-- Sidebar file list.
+
+The sidebar file list defaults to natural filename sorting, and can also be sorted by filename, created date, or modified
+date in either ascending or descending order.
 
 For archives, sort by the full internal archive path.
 

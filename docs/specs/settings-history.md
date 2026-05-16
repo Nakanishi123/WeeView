@@ -28,6 +28,7 @@ Required settings:
 - Sidebar width.
 - Window width and height.
 - Window maximized state.
+- Sidebar folder sort settings.
 
 If no home folder is configured, use the user's home directory.
 
@@ -41,6 +42,10 @@ Default values:
 - Sidebar width: 320 px.
 - Window size: 960 x 720.
 - Window maximized state: false.
+- Sidebar folder sort settings: empty, with sidebar folders defaulting to filename ascending.
+
+Sidebar folder sort settings store per-folder file list sort preferences. Each folder may remember filename, created date,
+or modified date sorting in ascending or descending order. Folders without a stored preference use filename ascending.
 
 `pageLoadDebounceMs` configures the page image load delay after page navigation.
 
