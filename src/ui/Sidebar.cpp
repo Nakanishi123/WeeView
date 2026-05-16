@@ -693,14 +693,14 @@ void Sidebar::showSortMenu() {
         });
     };
 
-    addSortAction(tr("↑ ファイル名"), SidebarSortKey::FileName, SidebarSortOrder::Ascending);
-    addSortAction(tr("↓ ファイル名"), SidebarSortKey::FileName, SidebarSortOrder::Descending);
+    addSortAction(QStringLiteral("↑ ") + tr("Filename"), SidebarSortKey::FileName, SidebarSortOrder::Ascending);
+    addSortAction(QStringLiteral("↓ ") + tr("Filename"), SidebarSortKey::FileName, SidebarSortOrder::Descending);
     menu.addSeparator();
-    addSortAction(tr("↑ 作成日"), SidebarSortKey::CreatedAt, SidebarSortOrder::Ascending);
-    addSortAction(tr("↓ 作成日"), SidebarSortKey::CreatedAt, SidebarSortOrder::Descending);
+    addSortAction(QStringLiteral("↑ ") + tr("Created"), SidebarSortKey::CreatedAt, SidebarSortOrder::Ascending);
+    addSortAction(QStringLiteral("↓ ") + tr("Created"), SidebarSortKey::CreatedAt, SidebarSortOrder::Descending);
     menu.addSeparator();
-    addSortAction(tr("↑ 更新日"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Ascending);
-    addSortAction(tr("↓ 更新日"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Descending);
+    addSortAction(QStringLiteral("↑ ") + tr("Modified"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Ascending);
+    addSortAction(QStringLiteral("↓ ") + tr("Modified"), SidebarSortKey::ModifiedAt, SidebarSortOrder::Descending);
 
     menu.exec(sortButton_->mapToGlobal(QPoint(0, sortButton_->height())));
 }
@@ -1137,13 +1137,13 @@ void Sidebar::updateSortButtonText() {
     QString keyText;
     switch (sortKey_) {
     case SidebarSortKey::FileName:
-        keyText = tr("ファイル名");
+        keyText = tr("Filename");
         break;
     case SidebarSortKey::CreatedAt:
-        keyText = tr("作成日");
+        keyText = tr("Created");
         break;
     case SidebarSortKey::ModifiedAt:
-        keyText = tr("更新日");
+        keyText = tr("Modified");
         break;
     }
 
