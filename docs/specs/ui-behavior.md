@@ -5,6 +5,7 @@
 On startup:
 
 - Open the main window.
+- Display application UI labels in Japanese.
 - Do not automatically open the last book.
 - Show the configured home folder in the sidebar.
 - Keep the main image area empty until the user opens a folder, image file, or supported archive file.

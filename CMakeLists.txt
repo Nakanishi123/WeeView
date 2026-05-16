@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(WeeView
-    VERSION 1.0.3
+    VERSION 1.0.4
     DESCRIPTION "A lightweight manga viewer"
     LANGUAGES CXX
 )
@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Concurrent Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Concurrent LinguistTools Widgets)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
@@ -43,6 +43,11 @@ qt_add_resources(weeview "weeview_assets"
         assets/undo_history.svg
         assets/wrap_back.svg
         assets/wrap_forward.svg
+)
+
+qt_add_translations(weeview
+    TS_FILES
+        translations/weeview_ja.ts
 )
 
 target_include_directories(weeview PRIVATE src)

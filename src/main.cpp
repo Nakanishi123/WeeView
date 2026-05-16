@@ -1,10 +1,16 @@
 #include <QApplication>
+#include <QTranslator>
 #include <QUrl>
 
 #include "ui/MainWindow.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
+
+    QTranslator translator;
+    if (translator.load(QStringLiteral(":/i18n/weeview_ja.qm"))) {
+        app.installTranslator(&translator);
+    }
 
     weeview::MainWindow window;
     window.showRestored();
