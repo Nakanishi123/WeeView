@@ -6,6 +6,10 @@ ninja = "1.13.2"
 description = "Configure CMake"
 run = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 
+[tasks.run]
+description = "Run WeeView"
+run = "./build/weeview"
+
 [tasks.build]
 description = "Build WeeView"
 depends = ["configure"]

@@ -5,9 +5,12 @@
 On startup:
 
 - Open the main window.
+- Display application UI labels in Japanese.
 - Do not automatically open the last book.
 - Show the configured home folder in the sidebar.
 - Keep the main image area empty until the user opens a folder, image file, or supported archive file.
+- If the application is launched with a supported folder, image file, or archive file path, open that path after the main
+  window is shown.
 
 If no home folder is configured, use the user's home directory as the sidebar home folder.
 
@@ -46,6 +49,7 @@ The sidebar must include:
 - Up directory button.
 - History button.
 - Settings button.
+- Sort button.
 - File list.
 
 ### File list entries
@@ -55,6 +59,10 @@ The file list must show:
 - Directories.
 - Supported image files.
 - Supported archive files.
+
+The sort button sits below the navigation/settings buttons and opens a menu for changing file list sort order. It shows
+the current direction and key, for example `↑ ファイル名`. Available sort keys are filename, created date, and modified
+date, each with ascending and descending order.
 
 Each applicable entry should show a reading state icon:
 
@@ -101,6 +109,9 @@ History replaces the file list with recent books from reading history. History e
 progress, reading state, and may show an asynchronously loaded thumbnail of the book's first page. Thumbnail loading may
 be limited to the most recent entries to avoid excessive disk and CPU work.
 
+Right-clicking the file list or history list opens a context menu for history-only operations. The menu can delete the
+history entry for the clicked book, and can delete all history entries that belong to the current sidebar folder.
+
 Settings replaces the file list with controls for editable app settings. Changes are persisted to `settings.json`.
 
 ## Header overlay
@@ -112,12 +123,17 @@ Display behavior:
 - Hidden by default.
 - Moving the mouse to the top edge shows the header.
 - Header overlays the image area.
+- The main window is frameless; the header provides the app's title-bar controls while visible.
+- Dragging the header moves the window.
+- Double-clicking the header toggles maximized/restored state.
+- The close button's hit target reaches the top-right corner while the header is visible.
 
 Required contents:
 
 - Current opened book path.
 - Single-page/spread toggle button.
 - Right-to-left/left-to-right toggle button.
+- Minimize, maximize/restore, and close buttons.
 
 Settings button is not required in the header.
 
@@ -162,6 +178,8 @@ Footer shows when the mouse is within 24 px of the bottom edge.
 Sidebar shows when the mouse is within 24 px of the left edge.
 
 Each overlay hides 800 ms after the mouse leaves its active area.
+
+The frameless main window remains resizable from its outer edges when it is not maximized.
 
 ## File operations
 

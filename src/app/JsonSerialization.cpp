@@ -20,6 +20,9 @@ constexpr auto sidebarWidthKey = "sidebarWidth";
 constexpr auto windowWidthKey = "windowWidth";
 constexpr auto windowHeightKey = "windowHeight";
 constexpr auto windowMaximizedKey = "windowMaximized";
+constexpr auto sidebarFolderSortsKey = "sidebarFolderSorts";
+constexpr auto sidebarSortKeyKey = "key";
+constexpr auto sidebarSortOrderKey = "order";
 
 constexpr auto bookPathKey = "bookPath";
 constexpr auto bookTypeKey = "bookType";
@@ -47,9 +50,77 @@ bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
     return value.isBool() ? value.toBool() : fallback;
 }
 
+QString toJsonString(SidebarSortKey sortKey) {
+    switch (sortKey) {
+    case SidebarSortKey::FileName:
+        return QStringLiteral("fileName");
+    case SidebarSortKey::CreatedAt:
+        return QStringLiteral("createdAt");
+    case SidebarSortKey::ModifiedAt:
+        return QStringLiteral("modifiedAt");
+    }
+    return QStringLiteral("fileName");
+}
+
+QString toJsonString(SidebarSortOrder sortOrder) {
+    switch (sortOrder) {
+    case SidebarSortOrder::Ascending:
+        return QStringLiteral("ascending");
+    case SidebarSortOrder::Descending:
+        return QStringLiteral("descending");
+    }
+    return QStringLiteral("ascending");
+}
+
+SidebarSortKey sidebarSortKeyFromJsonString(const QString &value, SidebarSortKey fallback) {
+    if (value == QLatin1String("fileName")) {
+        return SidebarSortKey::FileName;
+    }
+    if (value == QLatin1String("createdAt")) {
+        return SidebarSortKey::CreatedAt;
+    }
+    if (value == QLatin1String("modifiedAt")) {
+        return SidebarSortKey::ModifiedAt;
+    }
+    return fallback;
+}
+
+SidebarSortOrder sidebarSortOrderFromJsonString(const QString &value, SidebarSortOrder fallback) {
+    if (value == QLatin1String("ascending")) {
+        return SidebarSortOrder::Ascending;
+    }
+    if (value == QLatin1String("descending")) {
+        return SidebarSortOrder::Descending;
+    }
+    return fallback;
+}
+
+QJsonObject toJson(const SidebarSortSettings &settings) {
+    return {
+        {QLatin1String(sidebarSortKeyKey), toJsonString(settings.key)},
+        {QLatin1String(sidebarSortOrderKey), toJsonString(settings.order)},
+    };
+}
+
+SidebarSortSettings sidebarSortSettingsFromJson(const QJsonObject &object) {
+    SidebarSortSettings settings;
+    settings.key =
+        sidebarSortKeyFromJsonString(stringValue(object, sidebarSortKeyKey, toJsonString(settings.key)), settings.key);
+    settings.order = sidebarSortOrderFromJsonString(
+        stringValue(object, sidebarSortOrderKey, toJsonString(settings.order)), settings.order);
+    return settings;
+}
+
 } // namespace
 
 QJsonObject toJson(const AppSettings &settings) {
+    QJsonObject sidebarFolderSorts;
+    for (auto it = settings.sidebarFolderSorts.cbegin(); it != settings.sidebarFolderSorts.cend(); ++it) {
+        if (!it.key().isEmpty()) {
+            sidebarFolderSorts.insert(it.key(), toJson(it.value()));
+        }
+    }
+
     return {
         {QLatin1String(schemaVersionKey), settings.schemaVersion},
         {QLatin1String(homeFolderKey), settings.homeFolder},
@@ -63,6 +134,7 @@ QJsonObject toJson(const AppSettings &settings) {
         {QLatin1String(windowWidthKey), settings.windowWidth},
         {QLatin1String(windowHeightKey), settings.windowHeight},
         {QLatin1String(windowMaximizedKey), settings.windowMaximized},
+        {QLatin1String(sidebarFolderSortsKey), sidebarFolderSorts},
     };
 }
 
@@ -87,6 +159,17 @@ AppSettings appSettingsFromJson(const QJsonObject &object) {
     settings.windowWidth = intValue(object, windowWidthKey, settings.windowWidth);
     settings.windowHeight = intValue(object, windowHeightKey, settings.windowHeight);
     settings.windowMaximized = boolValue(object, windowMaximizedKey, settings.windowMaximized);
+
+    const auto sidebarFolderSortsValue = object.value(QLatin1String(sidebarFolderSortsKey));
+    if (sidebarFolderSortsValue.isObject()) {
+        const auto sidebarFolderSorts = sidebarFolderSortsValue.toObject();
+        for (auto it = sidebarFolderSorts.constBegin(); it != sidebarFolderSorts.constEnd(); ++it) {
+            if (it.key().isEmpty() || !it.value().isObject()) {
+                continue;
+            }
+            settings.sidebarFolderSorts.insert(it.key(), sidebarSortSettingsFromJson(it.value().toObject()));
+        }
+    }
     return settings;
 }
 

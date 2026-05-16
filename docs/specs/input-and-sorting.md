@@ -2,6 +2,10 @@
 
 ## Supported input sources
 
+WeeView can open supported paths passed by the operating system, such as a file manager's "Open With" action.
+
+When multiple paths are passed at startup, WeeView opens the first supported path.
+
 ### Folder books
 
 A folder containing supported image files can be opened as a book.
@@ -82,7 +86,9 @@ Natural sorting applies to:
 
 - Folder image files.
 - Archive internal image entries.
-- Sidebar file list.
+
+The sidebar file list defaults to natural filename sorting, and can also be sorted by filename, created date, or modified
+date in either ascending or descending order.
 
 For archives, sort by the full internal archive path.
 

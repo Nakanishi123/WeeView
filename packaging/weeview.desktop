@@ -2,7 +2,8 @@
 Type=Application
 Name=WeeView
 Comment=A lightweight manga viewer
-Exec=weeview
+Exec=weeview %F
 Icon=weeview
 Categories=Graphics;Viewer;
 Terminal=false
+MimeType=inode/directory;image/jpeg;image/png;image/webp;image/avif;application/zip;application/x-cbz;application/vnd.comicbook+zip;application/x-7z-compressed;application/x-cb7;application/vnd.comicbook+7z;

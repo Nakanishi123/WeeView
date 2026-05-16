@@ -28,6 +28,7 @@ Required settings:
 - Sidebar width.
 - Window width and height.
 - Window maximized state.
+- Sidebar folder sort settings.
 
 If no home folder is configured, use the user's home directory.
 
@@ -41,6 +42,10 @@ Default values:
 - Sidebar width: 320 px.
 - Window size: 960 x 720.
 - Window maximized state: false.
+- Sidebar folder sort settings: empty, with sidebar folders defaulting to filename ascending.
+
+Sidebar folder sort settings store per-folder file list sort preferences. Each folder may remember filename, created date,
+or modified date sorting in ascending or descending order. Folders without a stored preference use filename ascending.
 
 `pageLoadDebounceMs` configures the page image load delay after page navigation.
 
@@ -105,3 +110,11 @@ Reading:
 Completed:
 
 - `lastPageIndex >= pageCount - 1`.
+
+## History deletion
+
+Deleting history from the sidebar removes entries from `history.json` only. It must not delete, rename, move, or modify
+book files.
+
+Deleting all history for the current sidebar folder removes archive entries in that folder and folder-book entries for
+that folder or its direct child folders.

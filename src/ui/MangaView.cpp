@@ -102,8 +102,13 @@ void MangaView::clearPageImages() {
 }
 
 void MangaView::retainPageImages(const QSet<int> &pageIndices) {
+    auto retainedPageIndices = pageIndices;
+    for (const auto pageIndex : lastPaintablePageIndices_) {
+        retainedPageIndices.insert(pageIndex);
+    }
+
     for (int index = 0; index < pageImages_.size(); ++index) {
-        if (!pageIndices.contains(index)) {
+        if (!retainedPageIndices.contains(index)) {
             pageImages_[index] = {};
         }
     }

@@ -11,6 +11,7 @@
 #include <memory>
 
 class QCloseEvent;
+class QEvent;
 class QTimer;
 
 namespace weeview {
@@ -23,11 +24,15 @@ class MainWindow final : public QMainWindow {
   public:
     explicit MainWindow(QWidget *parent = nullptr);
     void showRestored();
+    bool openPath(const QString &path);
 
   protected:
+    void changeEvent(QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
   private:
+    void wireWindowControls();
+    void updateHeaderWindowState();
     void restoreWindowSettings();
     void saveAppSettings();
     void applyAppSettings(const AppSettings &settings);
@@ -43,18 +48,22 @@ class MainWindow final : public QMainWindow {
     void cancelDeferredPageLoad();
     void refreshCachedImages();
     void cancelImagePreload();
+    void cancelImageLoads();
     void processImagePreloadBatch();
     void resetPageMetadata();
     void loadPageMetadataForState(const ViewerState &viewerState);
-    bool loadPageMetadata(int pageIndex);
+    void requestPageMetadataLoad(int pageIndex);
     void schedulePageMetadataLoad();
     void cancelPageMetadataLoad();
     void processPageMetadataBatch();
-    void loadPageIntoCache(int pageIndex);
+    void requestPageImageLoad(int pageIndex);
     void loadHistory();
     void saveCurrentHistory();
     void saveHistory();
     void refreshSidebarHistory();
+    void deleteHistoryEntry(const QString &bookPath);
+    void deleteCurrentFolderHistory(const QString &folderPath);
+    [[nodiscard]] bool historyEntryBelongsToFolder(const HistoryEntry &entry, const QString &folderPath) const;
     [[nodiscard]] HistoryEntry *currentHistoryEntry();
     [[nodiscard]] HistoryEntry *historyEntryForPath(const QString &bookPath);
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
@@ -74,10 +83,15 @@ class MainWindow final : public QMainWindow {
     QSet<int> retainedImagePageIndices_;
     QSet<int> protectedImagePageIndices_;
     QSet<int> loadedPageMetadataIndices_;
+    QSet<int> pendingImageLoadIndices_;
+    QSet<int> pendingPageMetadataIndices_;
     std::unique_ptr<Book> currentBook_;
     qint64 imagePreloadBudgetBytes_ = 0;
+    int imageLoadGeneration_ = 0;
+    int pageMetadataGeneration_ = 0;
     bool loadingBook_ = false;
     bool deferredPageLoadPending_ = false;
+    QString suppressedHistoryBookPath_;
 };
 
 } // namespace weeview

@@ -4,9 +4,12 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSize>
 #include <QSizePolicy>
+#include <QStyle>
+#include <QWindow>
 
 namespace weeview {
 namespace {
@@ -23,6 +26,15 @@ void configureIconButton(QPushButton *button, const QString &label) {
     button->setFocusPolicy(Qt::NoFocus);
 }
 
+void configureWindowButton(QPushButton *button, const QString &label, QStyle::StandardPixmap icon) {
+    button->setIcon(button->style()->standardIcon(icon));
+    button->setIconSize(QSize(18, 18));
+    button->setToolTip(label);
+    button->setAccessibleName(label);
+    button->setFixedSize(headerButtonSize, headerButtonSize);
+    button->setFocusPolicy(Qt::NoFocus);
+}
+
 } // namespace
 
 HeaderBar::HeaderBar(QWidget *parent) : QWidget(parent) {
@@ -31,26 +43,36 @@ HeaderBar::HeaderBar(QWidget *parent) : QWidget(parent) {
                                  "QPushButton { padding: 4px 10px; }"));
 
     bookPathLabel_ = new QLabel(this);
-    bookPathLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     bookPathLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     bookPathLabel_->setTextFormat(Qt::PlainText);
 
     viewModeButton_ = new QPushButton(this);
     readingDirectionButton_ = new QPushButton(this);
+    minimizeButton_ = new QPushButton(this);
+    maximizeRestoreButton_ = new QPushButton(this);
+    closeButton_ = new QPushButton(this);
     viewModeButton_->setCheckable(true);
     readingDirectionButton_->setCheckable(true);
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(12, 8, 12, 8);
+    layout->setContentsMargins(12, 0, 0, 0);
     layout->setSpacing(8);
     layout->addWidget(bookPathLabel_, 1);
     layout->addWidget(viewModeButton_);
     layout->addWidget(readingDirectionButton_);
+    layout->addSpacing(8);
+    layout->addWidget(minimizeButton_);
+    layout->addWidget(maximizeRestoreButton_);
+    layout->addWidget(closeButton_);
 
     connect(viewModeButton_, &QPushButton::clicked, this, &HeaderBar::toggleViewMode);
     connect(readingDirectionButton_, &QPushButton::clicked, this, &HeaderBar::toggleReadingDirection);
+    connect(minimizeButton_, &QPushButton::clicked, this, &HeaderBar::minimizeRequested);
+    connect(maximizeRestoreButton_, &QPushButton::clicked, this, &HeaderBar::maximizeRestoreRequested);
+    connect(closeButton_, &QPushButton::clicked, this, &HeaderBar::closeRequested);
 
     updateButtons();
+    updateWindowButtons();
 }
 
 void HeaderBar::setBookPath(const QString &bookPath) {
@@ -76,6 +98,15 @@ void HeaderBar::setReadingDirection(ReadingDirection readingDirection) {
     updateButtons();
 }
 
+void HeaderBar::setWindowMaximized(bool maximized) {
+    if (windowMaximized_ == maximized) {
+        return;
+    }
+
+    windowMaximized_ = maximized;
+    updateWindowButtons();
+}
+
 QString HeaderBar::bookPath() const { return bookPath_; }
 
 ViewMode HeaderBar::viewMode() const { return viewMode_; }
@@ -98,6 +129,13 @@ void HeaderBar::updateButtons() {
     configureIconButton(readingDirectionButton_, readingDirectionLabel);
 }
 
+void HeaderBar::updateWindowButtons() {
+    configureWindowButton(minimizeButton_, tr("Minimize"), QStyle::SP_TitleBarMinButton);
+    configureWindowButton(maximizeRestoreButton_, windowMaximized_ ? tr("Restore") : tr("Maximize"),
+                          windowMaximized_ ? QStyle::SP_TitleBarNormalButton : QStyle::SP_TitleBarMaxButton);
+    configureWindowButton(closeButton_, tr("Close"), QStyle::SP_TitleBarCloseButton);
+}
+
 void HeaderBar::toggleViewMode() {
     viewMode_ = viewMode_ == ViewMode::SinglePage ? ViewMode::Spread : ViewMode::SinglePage;
     updateButtons();
@@ -109,6 +147,28 @@ void HeaderBar::toggleReadingDirection() {
                                                                            : ReadingDirection::RightToLeft;
     updateButtons();
     emit readingDirectionChanged(readingDirection_);
+}
+
+void HeaderBar::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        emit maximizeRestoreRequested();
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseDoubleClickEvent(event);
+}
+
+void HeaderBar::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        if (auto *handle = window()->windowHandle(); handle != nullptr) {
+            handle->startSystemMove();
+            event->accept();
+            return;
+        }
+    }
+
+    QWidget::mousePressEvent(event);
 }
 
 } // namespace weeview

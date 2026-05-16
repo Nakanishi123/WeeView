@@ -50,6 +50,8 @@ class Sidebar final : public QWidget {
     void archiveBookRequested(const QString &archivePath);
     void appSettingsChanged(const AppSettings &settings);
     void sidebarWidthChanged(int width);
+    void historyEntryDeleteRequested(const QString &bookPath);
+    void currentFolderHistoryDeleteRequested(const QString &folderPath);
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -65,6 +67,7 @@ class Sidebar final : public QWidget {
     void navigateUp();
     void showHistory();
     void showSettings();
+    void showSortMenu();
     void populateFileList();
     void populateHistoryList();
     void populateSettingsPanel();
@@ -73,6 +76,7 @@ class Sidebar final : public QWidget {
     void updateNavigationButtons();
     void handleItemClicked(QListWidgetItem *item);
     void handleItemDoubleClicked(QListWidgetItem *item);
+    void showFileListContextMenu(const QPoint &position);
     void openPendingDirectoryClick();
     void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);
@@ -80,6 +84,10 @@ class Sidebar final : public QWidget {
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     void updateFileListReadingStates();
     void updateArchiveSelection();
+    void applySortSettingsForCurrentFolder();
+    void saveSortSettingsForCurrentFolder();
+    void updateSortButtonText();
+    [[nodiscard]] QString historyBookPathForItem(const QListWidgetItem *item) const;
     [[nodiscard]] int readingState(EntryType entryType, const QString &path) const;
     [[nodiscard]] const HistoryEntry *historyEntryForPath(const QString &bookPath) const;
     void updateResizeCursor(const QPoint &position);
@@ -92,6 +100,7 @@ class Sidebar final : public QWidget {
     QPushButton *upButton_ = nullptr;
     QPushButton *historyButton_ = nullptr;
     QPushButton *settingsButton_ = nullptr;
+    QPushButton *sortButton_ = nullptr;
     QStackedWidget *contentStack_ = nullptr;
     QListWidget *fileList_ = nullptr;
     QWidget *settingsPanel_ = nullptr;
@@ -113,6 +122,8 @@ class Sidebar final : public QWidget {
     QStringList backStack_;
     QStringList forwardStack_;
     QVector<HistoryEntry> historyEntries_;
+    SidebarSortKey sortKey_ = SidebarSortKey::FileName;
+    SidebarSortOrder sortOrder_ = SidebarSortOrder::Ascending;
     bool showingHistory_ = false;
     bool showingSettings_ = false;
     bool updatingSettingsControls_ = false;
