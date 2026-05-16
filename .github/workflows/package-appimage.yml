@@ -1,0 +1,96 @@
+name: Package AppImage
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-appimage:
+    name: Build AppImage
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up mise
+        uses: jdx/mise-action@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            desktop-file-utils \
+            file \
+            libarchive-dev \
+            libfuse2 \
+            libgl1-mesa-dev \
+            libzip-dev \
+            patchelf \
+            pkg-config \
+            qmake6 \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qt6-image-formats-plugins \
+            wget
+
+      - name: Build application
+        run: mise run build
+
+      - name: Install into AppDir
+        run: cmake --install build --prefix AppDir/usr
+
+      - name: Bundle Qt image format plugins
+        run: |
+          plugin_dir="$(qtpaths6 --plugin-dir)"
+          mkdir -p AppDir/usr/plugins/imageformats
+          cp "$plugin_dir"/imageformats/*.so AppDir/usr/plugins/imageformats/
+
+      - name: Download linuxdeploy
+        run: |
+          wget -O linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Build AppImage
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export LINUXDEPLOY_OUTPUT_VERSION="${GITHUB_REF_NAME#v}"
+          export QMAKE=/usr/bin/qmake6
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --desktop-file packaging/weeview.desktop \
+            --icon-file assets/weeview.svg \
+            --plugin qt \
+            --output appimage
+
+      - name: Rename AppImage
+        run: |
+          mkdir -p dist
+          appimage="$(find . -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          if [ -z "$appimage" ]; then
+            echo "No AppImage found" >&2
+            exit 1
+          fi
+          cp "$appimage" "dist/WeeView-${GITHUB_REF_NAME#v}-x86_64.AppImage"
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: weeview-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach AppImage to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*.AppImage
