@@ -1197,6 +1197,8 @@ int Sidebar::readingState(EntryType entryType, const QString &path) const {
         bookPath = QFileInfo(path).dir().absolutePath();
     } else if (entryType == EntryType::Archive) {
         bookPath = QFileInfo(path).absoluteFilePath();
+    } else if (entryType == EntryType::Directory) {
+        bookPath = QFileInfo(path).absoluteFilePath();
     } else {
         return static_cast<int>(ReadingState::Unread);
     }
