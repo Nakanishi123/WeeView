@@ -34,6 +34,7 @@ class Sidebar final : public QWidget {
 
     void setHomeFolder(const QString &homeFolder);
     void setCurrentFolder(const QString &folderPath);
+    void setCurrentFolderBookPath(const QString &folderPath);
     void setCurrentArchivePath(const QString &archivePath);
     void setHistoryEntries(const QVector<HistoryEntry> &historyEntries);
     void setAppSettings(const AppSettings &settings);
@@ -41,6 +42,7 @@ class Sidebar final : public QWidget {
 
     [[nodiscard]] QString currentFolder() const;
     [[nodiscard]] QString homeFolder() const;
+    [[nodiscard]] QString currentFolderBookPath() const;
     [[nodiscard]] QString currentArchivePath() const;
     [[nodiscard]] int sidebarWidth() const;
 
@@ -83,7 +85,7 @@ class Sidebar final : public QWidget {
     void addHistoryEntry(const HistoryEntry &entry);
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     void updateFileListReadingStates();
-    void updateArchiveSelection();
+    void updateCurrentBookSelection();
     void applySortSettingsForCurrentFolder();
     void saveSortSettingsForCurrentFolder();
     void updateSortButtonText();
@@ -117,6 +119,7 @@ class Sidebar final : public QWidget {
     AppSettings appSettings_;
     QString homeFolder_;
     QString currentFolder_;
+    QString currentFolderBookPath_;
     QString currentArchivePath_;
     QString pendingDirectoryClickPath_;
     QStringList backStack_;

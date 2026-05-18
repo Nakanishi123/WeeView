@@ -80,6 +80,8 @@ Clicking a directory:
 - Opens that directory as a folder book.
 - Shows supported image files in that directory as pages.
 - Ignores non-image files in that directory.
+- Highlights the directory in the sidebar while that folder book is open, when the directory is visible in the current
+  sidebar folder.
 
 Double-clicking a directory changes the sidebar current directory.
 

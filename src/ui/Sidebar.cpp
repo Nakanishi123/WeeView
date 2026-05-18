@@ -465,9 +465,14 @@ void Sidebar::setHomeFolder(const QString &homeFolder) {
 
 void Sidebar::setCurrentFolder(const QString &folderPath) { navigateToFolder(folderPath, false); }
 
+void Sidebar::setCurrentFolderBookPath(const QString &folderPath) {
+    currentFolderBookPath_ = folderPath.isEmpty() ? QString() : QFileInfo(folderPath).absoluteFilePath();
+    updateCurrentBookSelection();
+}
+
 void Sidebar::setCurrentArchivePath(const QString &archivePath) {
     currentArchivePath_ = archivePath.isEmpty() ? QString() : QFileInfo(archivePath).absoluteFilePath();
-    updateArchiveSelection();
+    updateCurrentBookSelection();
 }
 
 void Sidebar::setHistoryEntries(const QVector<HistoryEntry> &historyEntries) {
@@ -525,6 +530,8 @@ void Sidebar::setSidebarWidth(int width) {
 QString Sidebar::currentFolder() const { return currentFolder_; }
 
 QString Sidebar::homeFolder() const { return homeFolder_; }
+
+QString Sidebar::currentFolderBookPath() const { return currentFolderBookPath_; }
 
 QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 
@@ -1032,7 +1039,11 @@ void Sidebar::addEntry(EntryType entryType, const QString &name, const QString &
     item->setData(entryPathRole, absolutePath);
     item->setData(readingStateRole, readingState(entryType, absolutePath));
 
-    if (entryType == EntryType::Archive && absolutePath == currentArchivePath_) {
+    const auto isCurrentFolderBook = entryType == EntryType::Directory && !currentFolderBookPath_.isEmpty() &&
+                                     absolutePath == currentFolderBookPath_;
+    const auto isCurrentArchive =
+        entryType == EntryType::Archive && !currentArchivePath_.isEmpty() && absolutePath == currentArchivePath_;
+    if (isCurrentFolderBook || isCurrentArchive) {
         item->setSelected(true);
     }
 }
@@ -1095,7 +1106,7 @@ void Sidebar::updateFileListReadingStates() {
     fileList_->viewport()->update();
 }
 
-void Sidebar::updateArchiveSelection() {
+void Sidebar::updateCurrentBookSelection() {
     const QSignalBlocker blocker(fileList_);
     for (int row = 0; row < fileList_->count(); ++row) {
         auto *item = fileList_->item(row);
@@ -1105,8 +1116,11 @@ void Sidebar::updateArchiveSelection() {
         const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
         const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
         const auto entryPath = item->data(entryPathRole).toString();
-        item->setSelected(itemKind == SidebarItemKind::FileEntry && entryType == EntryType::Archive &&
-                          !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_);
+        const auto isCurrentFolderBook = entryType == EntryType::Directory && !currentFolderBookPath_.isEmpty() &&
+                                         entryPath == currentFolderBookPath_;
+        const auto isCurrentArchive =
+            entryType == EntryType::Archive && !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_;
+        item->setSelected(itemKind == SidebarItemKind::FileEntry && (isCurrentFolderBook || isCurrentArchive));
     }
     fileList_->viewport()->update();
 }

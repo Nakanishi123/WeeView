@@ -300,6 +300,7 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
     currentBook_ = std::move(book);
     suppressedHistoryBookPath_.clear();
 
+    overlayContainer_->sidebar()->setCurrentFolderBookPath(QFileInfo(folderPath).absoluteFilePath());
     overlayContainer_->sidebar()->setCurrentArchivePath({});
     ViewerState viewerState;
     viewerState.currentPageIndex = requestedPageIndex;
@@ -327,6 +328,7 @@ void MainWindow::openImageFile(const QString &filePath) {
     currentBook_ = std::move(book);
     suppressedHistoryBookPath_.clear();
 
+    overlayContainer_->sidebar()->setCurrentFolderBookPath(fileInfo.dir().absolutePath());
     overlayContainer_->sidebar()->setCurrentArchivePath({});
     const auto requestedPageIndex = pageIndexForPath(fileInfo.absoluteFilePath());
     displayBook({
@@ -351,6 +353,7 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
 
     const QFileInfo archiveInfo(archivePath);
     overlayContainer_->sidebar()->setCurrentFolder(archiveInfo.dir().absolutePath());
+    overlayContainer_->sidebar()->setCurrentFolderBookPath({});
     overlayContainer_->sidebar()->setCurrentArchivePath(archiveInfo.absoluteFilePath());
 
     ViewerState viewerState;
