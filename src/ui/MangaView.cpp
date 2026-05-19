@@ -42,6 +42,26 @@ MangaView::MangaView(QWidget *parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
 }
 
+const QVector<MangaView::GestureCommand> &MangaView::rightButtonGestureCommands() {
+    static const QVector<GestureCommand> commands{
+        {{GestureDirection::Right, GestureDirection::Left},
+         QStringLiteral("1ページ進む"),
+         GestureAction::NextSinglePageStep},
+        {{GestureDirection::Left, GestureDirection::Right},
+         QStringLiteral("1ページ戻る"),
+         GestureAction::PreviousSinglePageStep},
+        {{GestureDirection::Up, GestureDirection::Right},
+         QStringLiteral("最初のページへ移動"),
+         GestureAction::FirstPage},
+        {{GestureDirection::Up, GestureDirection::Left}, QStringLiteral("最後のページへ移動"), GestureAction::LastPage},
+        {{GestureDirection::Down, GestureDirection::Right},
+         QStringLiteral("前の本へ移動"),
+         GestureAction::PreviousBook},
+        {{GestureDirection::Down, GestureDirection::Left}, QStringLiteral("次の本へ移動"), GestureAction::NextBook},
+    };
+    return commands;
+}
+
 void MangaView::setImage(QImage image) {
     image_ = std::move(image);
     if (pageImages_.size() <= currentPageIndex_) {
@@ -412,11 +432,11 @@ QString MangaView::rightButtonGestureWatermarkText() const {
 
     const auto arrowText = rightButtonGestureArrowText();
     if (arrowText.isEmpty()) {
-        return {};
+        return QStringLiteral("右ボタンジェスチャー");
     }
 
-    const auto commandText = rightButtonGestureCommandText();
-    return commandText.isEmpty() ? arrowText : QStringLiteral("%1\n%2").arg(arrowText, commandText);
+    const auto *command = matchingRightButtonGestureCommand();
+    return command == nullptr ? arrowText : QStringLiteral("%1\n%2").arg(arrowText, command->text);
 }
 
 QString MangaView::rightButtonGestureArrowText() const {
@@ -443,39 +463,21 @@ QString MangaView::rightButtonGestureArrowText() const {
     return arrows.join(QLatin1Char(' '));
 }
 
-QString MangaView::rightButtonGestureCommandText() const {
+const MangaView::GestureCommand *MangaView::matchingRightButtonGestureCommand() const {
     if (rightButtonGestureAmbiguous_) {
-        return {};
+        return nullptr;
     }
 
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Right, GestureDirection::Left}) {
-        return QStringLiteral("1ページ進む");
+    for (const auto &command : rightButtonGestureCommands()) {
+        if (rightButtonGestureDirections_ == command.directions) {
+            return &command;
+        }
     }
 
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Left, GestureDirection::Right}) {
-        return QStringLiteral("1ページ戻る");
-    }
-
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Right}) {
-        return QStringLiteral("最初のページへ移動");
-    }
-
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Left}) {
-        return QStringLiteral("最後のページへ移動");
-    }
-
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Right}) {
-        return QStringLiteral("前の本へ移動");
-    }
-
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Left}) {
-        return QStringLiteral("次の本へ移動");
-    }
-
-    return {};
+    return nullptr;
 }
 
-bool MangaView::isRightButtonGestureCommand() const { return !rightButtonGestureCommandText().isEmpty(); }
+bool MangaView::isRightButtonGestureCommand() const { return matchingRightButtonGestureCommand() != nullptr; }
 
 QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
     if (!hasPages()) {
@@ -699,23 +701,30 @@ void MangaView::appendRightButtonGestureDirection(GestureDirection direction, co
 }
 
 void MangaView::executeRightButtonGestureCommand() {
-    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Right, GestureDirection::Left}) {
+    const auto *command = matchingRightButtonGestureCommand();
+    if (command == nullptr) {
+        return;
+    }
+
+    switch (command->action) {
+    case GestureAction::NextSinglePageStep:
         goToNextSinglePageStep();
-    } else if (rightButtonGestureDirections_ ==
-               QVector<GestureDirection>{GestureDirection::Left, GestureDirection::Right}) {
+        break;
+    case GestureAction::PreviousSinglePageStep:
         goToPreviousSinglePageStep();
-    } else if (rightButtonGestureDirections_ ==
-               QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Right}) {
+        break;
+    case GestureAction::FirstPage:
         goToFirstPage();
-    } else if (rightButtonGestureDirections_ ==
-               QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Left}) {
+        break;
+    case GestureAction::LastPage:
         goToLastPage();
-    } else if (rightButtonGestureDirections_ ==
-               QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Right}) {
+        break;
+    case GestureAction::PreviousBook:
         emit previousBookRequested();
-    } else if (rightButtonGestureDirections_ ==
-               QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Left}) {
+        break;
+    case GestureAction::NextBook:
         emit nextBookRequested();
+        break;
     }
 }
 

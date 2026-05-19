@@ -65,12 +65,28 @@ class MangaView final : public QWidget {
         Down,
     };
 
+    enum class GestureAction {
+        NextSinglePageStep,
+        PreviousSinglePageStep,
+        FirstPage,
+        LastPage,
+        PreviousBook,
+        NextBook,
+    };
+
+    struct GestureCommand {
+        QVector<GestureDirection> directions;
+        QString text;
+        GestureAction action;
+    };
+
+    [[nodiscard]] static const QVector<GestureCommand> &rightButtonGestureCommands();
     [[nodiscard]] QVector<int> displayPageIndices() const;
     [[nodiscard]] QVector<int> paintPageIndices() const;
     [[nodiscard]] QString pendingPageWatermarkText() const;
     [[nodiscard]] QString rightButtonGestureWatermarkText() const;
     [[nodiscard]] QString rightButtonGestureArrowText() const;
-    [[nodiscard]] QString rightButtonGestureCommandText() const;
+    [[nodiscard]] const GestureCommand *matchingRightButtonGestureCommand() const;
     [[nodiscard]] bool isRightButtonGestureCommand() const;
     [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
