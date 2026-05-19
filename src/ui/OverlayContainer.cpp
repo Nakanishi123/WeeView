@@ -115,6 +115,15 @@ bool OverlayContainer::eventFilter(QObject *watched, QEvent *event) {
         }
     } else if (event->type() == QEvent::Leave) {
         updateResizeCursor({});
+        if (headerBar_->isVisible()) {
+            scheduleHeaderHide();
+        }
+        if (footerBar_->isVisible()) {
+            scheduleFooterHide();
+        }
+        if (sidebar_->isVisible()) {
+            scheduleSidebarHide();
+        }
     }
 
     return QWidget::eventFilter(watched, event);
