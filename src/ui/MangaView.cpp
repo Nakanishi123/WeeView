@@ -456,6 +456,22 @@ QString MangaView::rightButtonGestureCommandText() const {
         return QStringLiteral("1ページ戻る");
     }
 
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Right}) {
+        return QStringLiteral("最初のページへ移動");
+    }
+
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Left}) {
+        return QStringLiteral("最後のページへ移動");
+    }
+
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Right}) {
+        return QStringLiteral("前の本へ移動");
+    }
+
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Left}) {
+        return QStringLiteral("次の本へ移動");
+    }
+
     return {};
 }
 
@@ -688,6 +704,18 @@ void MangaView::executeRightButtonGestureCommand() {
     } else if (rightButtonGestureDirections_ ==
                QVector<GestureDirection>{GestureDirection::Left, GestureDirection::Right}) {
         goToPreviousSinglePageStep();
+    } else if (rightButtonGestureDirections_ ==
+               QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Right}) {
+        goToFirstPage();
+    } else if (rightButtonGestureDirections_ ==
+               QVector<GestureDirection>{GestureDirection::Up, GestureDirection::Left}) {
+        goToLastPage();
+    } else if (rightButtonGestureDirections_ ==
+               QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Right}) {
+        emit previousBookRequested();
+    } else if (rightButtonGestureDirections_ ==
+               QVector<GestureDirection>{GestureDirection::Down, GestureDirection::Left}) {
+        emit nextBookRequested();
     }
 }
 

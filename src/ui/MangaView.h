@@ -46,6 +46,8 @@ class MangaView final : public QWidget {
     void pageCountChanged(int pageCount);
     void viewModeChanged(ViewMode viewMode);
     void readingDirectionChanged(ReadingDirection readingDirection);
+    void previousBookRequested();
+    void nextBookRequested();
 
   protected:
     void paintEvent(QPaintEvent *event) override;

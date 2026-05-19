@@ -99,6 +99,12 @@ Clicking a ZIP/CBZ or 7z/CB7 file:
 - Otherwise sets `currentPageIndex` to 0.
 - Highlights the archive file in the sidebar.
 
+Adjacent book navigation opens the previous or next book in the current book's parent folder. Adjacent book candidates
+are folder books and supported archive books. Supported image files are pages within a folder book and are not adjacent
+book candidates. Candidate order follows the sidebar file list order for that parent folder, with directories before
+files and the configured sidebar sort key/order applied within each group. Navigation at the first or last candidate
+does not wrap.
+
 ### Sidebar navigation
 
 Home navigates to the configured home folder.
