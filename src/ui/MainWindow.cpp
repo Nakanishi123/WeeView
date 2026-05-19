@@ -9,6 +9,7 @@
 #include "ui/OverlayContainer.h"
 #include "ui/Sidebar.h"
 #include "util/FileTypes.h"
+#include "util/NaturalSort.h"
 
 #include <QCloseEvent>
 #include <QDateTime>
@@ -54,6 +55,14 @@ struct PageMetadataLoadResult {
     PageInfo pageInfo;
 };
 
+struct BookListEntry {
+    BookType bookType = BookType::Folder;
+    QString name;
+    QString path;
+    QDateTime createdAt;
+    QDateTime modifiedAt;
+};
+
 qint64 cacheBytesFromMiB(int mib) { return std::max<qint64>(1, mib) * bytesPerMiB; }
 
 qint64 estimatedDecodedBytes(const PageInfo &pageInfo) {
@@ -90,6 +99,14 @@ PageMetadataLoadResult loadPageMetadataInBackground(int generation, BookType boo
     return {
         generation, bookType, sourcePath, pageIndex, book ? book->loadPageInfo(pageIndex) : PageInfo(),
     };
+}
+
+QDateTime sortableCreatedAt(const QFileInfo &fileInfo) {
+    const auto createdAt = fileInfo.birthTime();
+    if (createdAt.isValid()) {
+        return createdAt;
+    }
+    return fileInfo.metadataChangeTime();
 }
 
 void trimHistoryEntries(QVector<HistoryEntry> &entries) {
@@ -277,6 +294,8 @@ void MainWindow::wireSidebar() {
 
     auto *viewer = overlayContainer_->viewer();
     connect(viewer, &MangaView::currentPageIndexChanged, this, &MainWindow::handleCurrentPageChanged);
+    connect(viewer, &MangaView::previousBookRequested, this, [this] { openAdjacentBook(-1); });
+    connect(viewer, &MangaView::nextBookRequested, this, [this] { openAdjacentBook(1); });
     connect(viewer, &MangaView::viewModeChanged, this, [this] {
         suppressedHistoryBookPath_.clear();
         cancelDeferredPageLoad();
@@ -366,6 +385,99 @@ void MainWindow::openArchiveBook(const QString &archivePath) {
         };
     }
     displayBook(viewerState);
+}
+
+void MainWindow::openAdjacentBook(int offset) {
+    if (!currentBook_ || offset == 0) {
+        return;
+    }
+
+    const auto currentBookPath = QFileInfo(currentBook_->sourcePath()).absoluteFilePath();
+    const auto parentFolder = QFileInfo(currentBookPath).dir().absolutePath();
+    const QDir directory(parentFolder);
+    const auto entries =
+        directory.entryInfoList(QDir::Dirs | QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::NoSort);
+
+    QVector<BookListEntry> directoryEntries;
+    QVector<BookListEntry> archiveEntries;
+    for (const auto &entry : entries) {
+        if (entry.isDir()) {
+            directoryEntries.append({
+                BookType::Folder,
+                entry.fileName(),
+                entry.absoluteFilePath(),
+                sortableCreatedAt(entry),
+                entry.lastModified(),
+            });
+        } else if (filetypes::isSupportedArchiveFile(entry.fileName())) {
+            archiveEntries.append({
+                BookType::Archive,
+                entry.fileName(),
+                entry.absoluteFilePath(),
+                sortableCreatedAt(entry),
+                entry.lastModified(),
+            });
+        }
+    }
+
+    const auto sortSettings =
+        appSettings_.sidebarFolderSorts.value(QFileInfo(parentFolder).absoluteFilePath(), SidebarSortSettings{});
+    const auto sortEntries = [&sortSettings](QVector<BookListEntry> &items) {
+        std::sort(items.begin(), items.end(), [&sortSettings](const BookListEntry &left, const BookListEntry &right) {
+            auto result = 0;
+            switch (sortSettings.key) {
+            case SidebarSortKey::FileName:
+                result = naturalsort::lessThan(left.name, right.name)
+                             ? -1
+                             : (naturalsort::lessThan(right.name, left.name) ? 1 : 0);
+                break;
+            case SidebarSortKey::CreatedAt:
+                result = left.createdAt < right.createdAt ? -1 : (right.createdAt < left.createdAt ? 1 : 0);
+                break;
+            case SidebarSortKey::ModifiedAt:
+                result = left.modifiedAt < right.modifiedAt ? -1 : (right.modifiedAt < left.modifiedAt ? 1 : 0);
+                break;
+            }
+
+            if (result == 0) {
+                result = naturalsort::lessThan(left.name, right.name)
+                             ? -1
+                             : (naturalsort::lessThan(right.name, left.name) ? 1 : 0);
+            }
+
+            return sortSettings.order == SidebarSortOrder::Ascending ? result < 0 : result > 0;
+        });
+    };
+
+    sortEntries(directoryEntries);
+    sortEntries(archiveEntries);
+
+    QVector<BookListEntry> bookEntries;
+    bookEntries.reserve(directoryEntries.size() + archiveEntries.size());
+    bookEntries.append(directoryEntries);
+    bookEntries.append(archiveEntries);
+
+    const auto currentIt =
+        std::find_if(bookEntries.cbegin(), bookEntries.cend(), [&currentBookPath](const auto &entry) {
+            return QFileInfo(entry.path).absoluteFilePath() == currentBookPath;
+        });
+    if (currentIt == bookEntries.cend()) {
+        return;
+    }
+
+    const auto currentIndex = static_cast<int>(std::distance(bookEntries.cbegin(), currentIt));
+    const auto nextIndex = currentIndex + offset;
+    if (nextIndex < 0 || nextIndex >= bookEntries.size()) {
+        return;
+    }
+
+    const auto nextBook = bookEntries.at(nextIndex);
+    if (nextBook.bookType == BookType::Folder) {
+        overlayContainer_->sidebar()->setCurrentFolder(parentFolder);
+        openFolderBook(nextBook.path);
+    } else {
+        openArchiveBook(nextBook.path);
+    }
 }
 
 void MainWindow::displayBook(const ViewerState &viewerState) {

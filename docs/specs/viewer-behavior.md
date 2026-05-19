@@ -88,17 +88,30 @@ Mouse wheel navigation is independent of reading direction:
 - Wheel down: next page.
 - Wheel up: previous page.
 
-Right-button hold gestures navigate by horizontal command shape, independent of reading direction:
+Right-button hold gestures record a command shape from up/down/left/right movement segments, independent of reading
+direction. A movement segment is added when the pointer moves far enough from the previous segment point and has a
+clear dominant axis.
+
+Known right-button hold gesture commands:
 
 - Right then left: advance by one logical page.
 - Left then right: go back by one logical page.
+- Up then right: go to the first page.
+- Up then left: go to the last page.
+- Down then right: go to the previous book.
+- Down then left: go to the next book.
 
-In spread mode, right-button hold gestures still move by exactly one logical page. A one-page advance from a single
-portrait page first pairs it with the next portrait page when possible, such as `[1]` to `[1, 2]`, instead of skipping
-to `[2, 3]`.
+Right-button hold gesture commands execute only when the right button is released and the recorded movement sequence
+exactly matches a known command. Extra movement before, between, or after a known command shape makes the sequence
+unmatched and no gesture command runs.
+
+In spread mode, page-step right-button hold gesture commands still move by exactly one logical page. A one-page advance
+from a single portrait page first pairs it with the next portrait page when possible, such as `[1]` to `[1, 2]`,
+instead of skipping to `[2, 3]`.
 
 While the right button is held, the viewer shows a centered translucent black command watermark with translucent white
-text for the active gesture command.
+text. The watermark always shows the recorded arrow sequence while a gesture is being entered. It shows command text
+only when the recorded sequence currently exactly matches a known command.
 
 Mouse wheel zoom is not part of MVP.
 
