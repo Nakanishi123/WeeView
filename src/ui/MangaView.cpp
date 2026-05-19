@@ -6,15 +6,18 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QRectF>
+#include <QStringList>
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace weeview {
 
 namespace {
 constexpr auto RightButtonGestureThreshold = 40.0;
+constexpr auto RightButtonGestureDominanceRatio = 1.25;
 constexpr int checkerboardCellSize = 12;
 const QColor checkerboardBlack(0, 0, 0);
 const QColor checkerboardDarkGray(24, 24, 24);
@@ -303,52 +306,38 @@ void MangaView::mousePressEvent(QMouseEvent *event) {
         goToDirectionAwareLeft();
     } else {
         rightButtonPressed_ = true;
-        rightButtonGestureTriggered_ = false;
-        rightButtonGestureDirection_ = HorizontalGestureDirection::None;
-        rightButtonGestureStartX_ = event->position().x();
-        rightButtonGestureTurnX_ = rightButtonGestureStartX_;
+        rightButtonGestureAmbiguous_ = false;
+        rightButtonGestureDirections_.clear();
+        rightButtonGestureAnchorPosition_ = event->position();
         update();
     }
     event->accept();
 }
 
 void MangaView::mouseMoveEvent(QMouseEvent *event) {
-    if (!rightButtonPressed_ || !event->buttons().testFlag(Qt::RightButton) || rightButtonGestureTriggered_) {
+    if (!rightButtonPressed_ || !event->buttons().testFlag(Qt::RightButton)) {
         QWidget::mouseMoveEvent(event);
         return;
     }
 
-    const auto currentX = event->position().x();
-    if (rightButtonGestureDirection_ == HorizontalGestureDirection::None) {
-        const auto deltaX = currentX - rightButtonGestureStartX_;
-        if (deltaX >= RightButtonGestureThreshold) {
-            rightButtonGestureDirection_ = HorizontalGestureDirection::Right;
-            rightButtonGestureTurnX_ = currentX;
-            update();
-        } else if (deltaX <= -RightButtonGestureThreshold) {
-            rightButtonGestureDirection_ = HorizontalGestureDirection::Left;
-            rightButtonGestureTurnX_ = currentX;
-            update();
-        }
-
+    const auto delta = event->position() - rightButtonGestureAnchorPosition_;
+    const auto absX = std::abs(delta.x());
+    const auto absY = std::abs(delta.y());
+    if (std::max(absX, absY) < RightButtonGestureThreshold) {
         event->accept();
         return;
     }
 
-    if (rightButtonGestureDirection_ == HorizontalGestureDirection::Right) {
-        rightButtonGestureTurnX_ = std::max(rightButtonGestureTurnX_, currentX);
-        if (currentX <= rightButtonGestureTurnX_ - RightButtonGestureThreshold) {
-            goToNextSinglePageStep();
-            rightButtonGestureTriggered_ = true;
-            update();
-        }
+    if (absX >= absY * RightButtonGestureDominanceRatio) {
+        appendRightButtonGestureDirection(delta.x() > 0 ? GestureDirection::Right : GestureDirection::Left,
+                                          event->position());
+    } else if (absY >= absX * RightButtonGestureDominanceRatio) {
+        appendRightButtonGestureDirection(delta.y() > 0 ? GestureDirection::Down : GestureDirection::Up,
+                                          event->position());
     } else {
-        rightButtonGestureTurnX_ = std::min(rightButtonGestureTurnX_, currentX);
-        if (currentX >= rightButtonGestureTurnX_ + RightButtonGestureThreshold) {
-            goToPreviousSinglePageStep();
-            rightButtonGestureTriggered_ = true;
-            update();
-        }
+        rightButtonGestureAmbiguous_ = true;
+        rightButtonGestureAnchorPosition_ = event->position();
+        update();
     }
 
     event->accept();
@@ -360,13 +349,15 @@ void MangaView::mouseReleaseEvent(QMouseEvent *event) {
         return;
     }
 
-    if (!rightButtonGestureTriggered_) {
+    if (rightButtonGestureDirections_.isEmpty() && !rightButtonGestureAmbiguous_) {
         goToDirectionAwareRight();
+    } else if (isRightButtonGestureCommand()) {
+        executeRightButtonGestureCommand();
     }
 
     rightButtonPressed_ = false;
-    rightButtonGestureTriggered_ = false;
-    rightButtonGestureDirection_ = HorizontalGestureDirection::None;
+    rightButtonGestureAmbiguous_ = false;
+    rightButtonGestureDirections_.clear();
     update();
     event->accept();
 }
@@ -419,12 +410,56 @@ QString MangaView::rightButtonGestureWatermarkText() const {
         return {};
     }
 
-    if (rightButtonGestureDirection_ == HorizontalGestureDirection::Left) {
-        return QStringLiteral("← →\n1ページ戻る");
+    const auto arrowText = rightButtonGestureArrowText();
+    if (arrowText.isEmpty()) {
+        return {};
     }
 
-    return QStringLiteral("→ ←\n1ページ進む");
+    const auto commandText = rightButtonGestureCommandText();
+    return commandText.isEmpty() ? arrowText : QStringLiteral("%1\n%2").arg(arrowText, commandText);
 }
+
+QString MangaView::rightButtonGestureArrowText() const {
+    QStringList arrows;
+    arrows.reserve(rightButtonGestureDirections_.size());
+
+    for (const auto direction : rightButtonGestureDirections_) {
+        switch (direction) {
+        case GestureDirection::Left:
+            arrows.append(QStringLiteral("←"));
+            break;
+        case GestureDirection::Right:
+            arrows.append(QStringLiteral("→"));
+            break;
+        case GestureDirection::Up:
+            arrows.append(QStringLiteral("↑"));
+            break;
+        case GestureDirection::Down:
+            arrows.append(QStringLiteral("↓"));
+            break;
+        }
+    }
+
+    return arrows.join(QLatin1Char(' '));
+}
+
+QString MangaView::rightButtonGestureCommandText() const {
+    if (rightButtonGestureAmbiguous_) {
+        return {};
+    }
+
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Right, GestureDirection::Left}) {
+        return QStringLiteral("1ページ進む");
+    }
+
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Left, GestureDirection::Right}) {
+        return QStringLiteral("1ページ戻る");
+    }
+
+    return {};
+}
+
+bool MangaView::isRightButtonGestureCommand() const { return !rightButtonGestureCommandText().isEmpty(); }
 
 QVector<int> MangaView::forwardSpreadGroup(int pageIndex) const {
     if (!hasPages()) {
@@ -636,6 +671,23 @@ void MangaView::goToDirectionAwareRight() {
         goToPreviousPage();
     } else {
         goToNextPage();
+    }
+}
+
+void MangaView::appendRightButtonGestureDirection(GestureDirection direction, const QPointF &position) {
+    if (rightButtonGestureDirections_.isEmpty() || rightButtonGestureDirections_.last() != direction) {
+        rightButtonGestureDirections_.append(direction);
+        update();
+    }
+    rightButtonGestureAnchorPosition_ = position;
+}
+
+void MangaView::executeRightButtonGestureCommand() {
+    if (rightButtonGestureDirections_ == QVector<GestureDirection>{GestureDirection::Right, GestureDirection::Left}) {
+        goToNextSinglePageStep();
+    } else if (rightButtonGestureDirections_ ==
+               QVector<GestureDirection>{GestureDirection::Left, GestureDirection::Right}) {
+        goToPreviousSinglePageStep();
     }
 }
 

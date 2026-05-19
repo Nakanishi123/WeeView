@@ -3,6 +3,7 @@
 #include "model/CoreTypes.h"
 
 #include <QImage>
+#include <QPointF>
 #include <QRectF>
 #include <QSet>
 #include <QString>
@@ -55,16 +56,20 @@ class MangaView final : public QWidget {
     void wheelEvent(QWheelEvent *event) override;
 
   private:
-    enum class HorizontalGestureDirection {
-        None,
+    enum class GestureDirection {
         Left,
         Right,
+        Up,
+        Down,
     };
 
     [[nodiscard]] QVector<int> displayPageIndices() const;
     [[nodiscard]] QVector<int> paintPageIndices() const;
     [[nodiscard]] QString pendingPageWatermarkText() const;
     [[nodiscard]] QString rightButtonGestureWatermarkText() const;
+    [[nodiscard]] QString rightButtonGestureArrowText() const;
+    [[nodiscard]] QString rightButtonGestureCommandText() const;
+    [[nodiscard]] bool isRightButtonGestureCommand() const;
     [[nodiscard]] QVector<int> forwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QVector<int> backwardSpreadGroup(int pageIndex) const;
     [[nodiscard]] QRectF fittedImageRect(const QRectF &availableRect, const QImage &image,
@@ -88,6 +93,8 @@ class MangaView final : public QWidget {
     void goToPreviousSinglePageStep();
     void goToDirectionAwareLeft();
     void goToDirectionAwareRight();
+    void appendRightButtonGestureDirection(GestureDirection direction, const QPointF &position);
+    void executeRightButtonGestureCommand();
 
     QImage image_;
     QVector<QImage> pageImages_;
@@ -97,11 +104,10 @@ class MangaView final : public QWidget {
     int currentDisplayLastPageIndex_ = 0;
     int pageCount_ = 0;
     int currentPageIndex_ = 0;
-    qreal rightButtonGestureStartX_ = 0.0;
-    qreal rightButtonGestureTurnX_ = 0.0;
     bool rightButtonPressed_ = false;
-    bool rightButtonGestureTriggered_ = false;
-    HorizontalGestureDirection rightButtonGestureDirection_ = HorizontalGestureDirection::None;
+    bool rightButtonGestureAmbiguous_ = false;
+    QPointF rightButtonGestureAnchorPosition_;
+    QVector<GestureDirection> rightButtonGestureDirections_;
     ViewMode viewMode_ = ViewMode::SinglePage;
     ReadingDirection readingDirection_ = ReadingDirection::RightToLeft;
     SpreadGroupDirection spreadGroupDirection_ = SpreadGroupDirection::Forward;
