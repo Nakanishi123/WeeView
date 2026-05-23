@@ -82,6 +82,14 @@ Expected order:
 2. `2.jpg`
 3. `10.jpg`
 
+Japanese kanji numerals in names are also treated as numeric tokens.
+
+Expected order:
+
+1. `第一景.jpg`
+2. `第二景.jpg`
+3. `第十景.jpg`
+
 Natural sorting applies to:
 
 - Folder image files.
