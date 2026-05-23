@@ -69,7 +69,7 @@ qulonglong parseJapaneseNumber(QStringView text) {
 
     for (const auto character : text) {
         if (const auto digit = japaneseDigitValue(character)) {
-            current = static_cast<qulonglong>(*digit);
+            current = current * 10 + static_cast<qulonglong>(*digit);
             continue;
         }
 
