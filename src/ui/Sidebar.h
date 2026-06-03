@@ -63,7 +63,8 @@ class Sidebar final : public QWidget {
     void mouseReleaseEvent(QMouseEvent *event) override;
 
   private:
-    void navigateToFolder(const QString &folderPath, bool recordHistory = true);
+    void navigateToFolder(const QString &folderPath, bool recordHistory = true,
+                          const QString &entryPathToReveal = QString());
     void navigateHome();
     void navigateBack();
     void navigateForward();
@@ -88,6 +89,8 @@ class Sidebar final : public QWidget {
     void loadHistoryThumbnailAsync(const HistoryEntry &entry, int requestId);
     void updateFileListReadingStates();
     void updateCurrentBookSelection();
+    [[nodiscard]] QListWidgetItem *fileListEntryForPath(const QString &path) const;
+    bool selectFileListEntry(const QString &path, bool scrollToItem);
     void applySortSettingsForCurrentFolder();
     void saveSortSettingsForCurrentFolder();
     void updateSortButtonText();

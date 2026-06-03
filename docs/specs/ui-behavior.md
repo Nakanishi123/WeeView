@@ -118,6 +118,10 @@ Forward navigates to the next sidebar folder if available.
 
 Up navigates to the parent directory.
 
+After Up, Back, or Forward navigation, if the newly displayed file list contains the folder that navigation came from,
+that folder is selected and scrolled into view. When the currently open folder book or archive is visible in the file
+list, its selected entry is also scrolled into view.
+
 History replaces the file list with recent books from reading history. History entries show the book name, path, reading
 progress, reading state, and may show an asynchronously loaded thumbnail of the book's first page. Thumbnail loading may
 be limited to the most recent entries to avoid excessive disk and CPU work.

@@ -6,6 +6,7 @@
 #include "util/FileTypes.h"
 #include "util/NaturalSort.h"
 
+#include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -618,7 +619,7 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
     QWidget::mouseReleaseEvent(event);
 }
 
-void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
+void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory, const QString &entryPathToReveal) {
     clearPendingDirectoryClick();
     const auto wasShowingAlternateView = showingHistory_ || showingSettings_;
     showingHistory_ = false;
@@ -626,12 +627,16 @@ void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     ++historyThumbnailGeneration_;
 
     const auto normalized = normalizedFolderPath(folderPath);
+    const auto revealPath = entryPathToReveal.isEmpty() ? QString() : QFileInfo(entryPathToReveal).absoluteFilePath();
     if (currentFolder_ == normalized) {
         if (wasShowingAlternateView || contentStack_->currentIndex() != 0) {
             populateFileList();
         } else {
             contentStack_->setCurrentIndex(0);
             pathLabel_->setText(currentFolder_);
+        }
+        if (!revealPath.isEmpty() && fileListEntryForPath(revealPath) != nullptr) {
+            selectFileListEntry(revealPath, true);
         }
         updateNavigationButtons();
         return;
@@ -646,6 +651,9 @@ void Sidebar::navigateToFolder(const QString &folderPath, bool recordHistory) {
     applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
+    if (!revealPath.isEmpty() && fileListEntryForPath(revealPath) != nullptr) {
+        selectFileListEntry(revealPath, true);
+    }
     updateNavigationButtons();
 }
 
@@ -656,11 +664,15 @@ void Sidebar::navigateBack() {
         return;
     }
 
-    forwardStack_.append(currentFolder_);
+    const auto originFolder = currentFolder_;
+    forwardStack_.append(originFolder);
     currentFolder_ = backStack_.takeLast();
     applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
+    if (fileListEntryForPath(originFolder) != nullptr) {
+        selectFileListEntry(originFolder, true);
+    }
     updateNavigationButtons();
 }
 
@@ -669,18 +681,22 @@ void Sidebar::navigateForward() {
         return;
     }
 
-    backStack_.append(currentFolder_);
+    const auto originFolder = currentFolder_;
+    backStack_.append(originFolder);
     currentFolder_ = forwardStack_.takeLast();
     applySortSettingsForCurrentFolder();
     pathLabel_->setText(currentFolder_);
     populateFileList();
+    if (fileListEntryForPath(originFolder) != nullptr) {
+        selectFileListEntry(originFolder, true);
+    }
     updateNavigationButtons();
 }
 
 void Sidebar::navigateUp() {
     const QDir directory(currentFolder_);
     const auto parentPath = QFileInfo(directory.absolutePath()).dir().absolutePath();
-    navigateToFolder(parentPath);
+    navigateToFolder(parentPath, true, currentFolder_);
 }
 
 void Sidebar::showHistory() {
@@ -808,6 +824,7 @@ void Sidebar::populateFileList() {
         addEntry(entry.entryType, entry.name, entry.path);
     }
 
+    updateCurrentBookSelection();
     updateNavigationButtons();
 }
 
@@ -1168,22 +1185,53 @@ void Sidebar::updateFileListReadingStates() {
 }
 
 void Sidebar::updateCurrentBookSelection() {
-    const QSignalBlocker blocker(fileList_);
+    if (!currentArchivePath_.isEmpty()) {
+        selectFileListEntry(currentArchivePath_, true);
+        return;
+    }
+
+    selectFileListEntry(currentFolderBookPath_, true);
+}
+
+QListWidgetItem *Sidebar::fileListEntryForPath(const QString &path) const {
+    if (path.isEmpty()) {
+        return nullptr;
+    }
+
+    const auto normalizedPath = QFileInfo(path).absoluteFilePath();
     for (int row = 0; row < fileList_->count(); ++row) {
         auto *item = fileList_->item(row);
         if (item == nullptr) {
             continue;
         }
         const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
-        const auto entryType = static_cast<EntryType>(item->data(entryTypeRole).toInt());
         const auto entryPath = item->data(entryPathRole).toString();
-        const auto isCurrentFolderBook = entryType == EntryType::Directory && !currentFolderBookPath_.isEmpty() &&
-                                         entryPath == currentFolderBookPath_;
-        const auto isCurrentArchive =
-            entryType == EntryType::Archive && !currentArchivePath_.isEmpty() && entryPath == currentArchivePath_;
-        item->setSelected(itemKind == SidebarItemKind::FileEntry && (isCurrentFolderBook || isCurrentArchive));
+        if (itemKind == SidebarItemKind::FileEntry && entryPath == normalizedPath) {
+            return item;
+        }
+    }
+
+    return nullptr;
+}
+
+bool Sidebar::selectFileListEntry(const QString &path, bool scrollToItem) {
+    const QSignalBlocker blocker(fileList_);
+    fileList_->clearSelection();
+
+    auto *item = fileListEntryForPath(path);
+    if (item == nullptr) {
+        fileList_->setCurrentRow(-1);
+        fileList_->viewport()->update();
+        return false;
+    }
+
+    fileList_->setCurrentItem(item);
+    item->setSelected(true);
+    if (scrollToItem) {
+        fileList_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
     }
     fileList_->viewport()->update();
+    return true;
 }
 
 void Sidebar::applySortSettingsForCurrentFolder() {
