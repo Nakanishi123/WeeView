@@ -8,6 +8,7 @@
 
 class QComboBox;
 class QEvent;
+class QHelpEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -79,6 +80,7 @@ class Sidebar final : public QWidget {
     void handleItemClicked(QListWidgetItem *item);
     void handleItemDoubleClicked(QListWidgetItem *item);
     void showFileListContextMenu(const QPoint &position);
+    bool showFileListItemToolTip(QHelpEvent *event);
     void openPendingDirectoryClick();
     void clearPendingDirectoryClick();
     void addEntry(EntryType entryType, const QString &name, const QString &path);

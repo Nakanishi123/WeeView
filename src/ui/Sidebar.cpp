@@ -19,6 +19,7 @@
 #include <QFormLayout>
 #include <QFutureWatcher>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -38,6 +39,7 @@
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTimer>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QtConcurrent>
 
@@ -201,6 +203,17 @@ QRect visibleItemRect(const QStyleOptionViewItem &option) {
     }
 
     const auto viewportRect = option.widget->rect();
+    rect.setLeft(std::max(rect.left(), viewportRect.left()));
+    rect.setRight(std::min(rect.right(), viewportRect.right()));
+    return rect;
+}
+
+QRect visibleViewportRect(QRect rect, const QWidget *viewport) {
+    if (viewport == nullptr) {
+        return rect;
+    }
+
+    const auto viewportRect = viewport->rect();
     rect.setLeft(std::max(rect.left(), viewportRect.left()));
     rect.setRight(std::min(rect.right(), viewportRect.right()));
     return rect;
@@ -538,6 +551,17 @@ QString Sidebar::currentArchivePath() const { return currentArchivePath_; }
 int Sidebar::sidebarWidth() const { return width(); }
 
 bool Sidebar::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::ToolTip && (watched == fileList_ || watched == fileList_->viewport())) {
+        auto *helpEvent = static_cast<QHelpEvent *>(event);
+        if (showFileListItemToolTip(helpEvent)) {
+            event->accept();
+            return true;
+        }
+        QToolTip::hideText();
+        event->ignore();
+        return true;
+    }
+
     if (event->type() == QEvent::ContextMenu && (watched == fileList_ || watched == fileList_->viewport())) {
         auto *contextMenuEvent = static_cast<QContextMenuEvent *>(event);
         const auto viewportPosition = watched == fileList_->viewport()
@@ -1012,6 +1036,43 @@ void Sidebar::showFileListContextMenu(const QPoint &position) {
     } else if (selectedAction == deleteCurrentFolderAction && !currentFolder_.isEmpty()) {
         emit currentFolderHistoryDeleteRequested(currentFolder_);
     }
+}
+
+bool Sidebar::showFileListItemToolTip(QHelpEvent *event) {
+    if (event == nullptr || fileList_ == nullptr || fileList_->viewport() == nullptr) {
+        return false;
+    }
+
+    const auto viewportPosition = fileList_->viewport()->mapFromGlobal(event->globalPos());
+    auto *item = fileList_->itemAt(viewportPosition);
+    if (item == nullptr) {
+        return false;
+    }
+
+    const auto itemKind = static_cast<SidebarItemKind>(item->data(itemKindRole).toInt());
+    if (itemKind == SidebarItemKind::FileEntry) {
+        const auto itemRect = visibleViewportRect(fileList_->visualItemRect(item), fileList_->viewport());
+        const auto name = item->data(Qt::DisplayRole).toString();
+        if (name.isEmpty()) {
+            return false;
+        }
+
+        QToolTip::showText(event->globalPos() + QPoint(16, 16), name, fileList_->viewport(), itemRect);
+        return true;
+    }
+
+    if (itemKind == SidebarItemKind::HistoryEntry) {
+        const auto itemRect = visibleViewportRect(fileList_->visualItemRect(item), fileList_->viewport());
+        const auto name = item->data(Qt::DisplayRole).toString();
+        if (name.isEmpty()) {
+            return false;
+        }
+
+        QToolTip::showText(event->globalPos() + QPoint(16, 16), name, fileList_->viewport(), itemRect);
+        return true;
+    }
+
+    return false;
 }
 
 void Sidebar::openPendingDirectoryClick() {

@@ -75,6 +75,9 @@ Directories with folder-book history use that folder book's reading state.
 The file type icon is shown to the left of the file or folder name. Reading and completed state icons are shown at the
 right edge of the row, with the state icon taking priority over long names when space is constrained.
 
+Hovering over the same file list or history entry row long enough for a tooltip shows the full name near the mouse
+cursor.
+
 ### File list behavior
 
 Clicking a directory:
