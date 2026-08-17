@@ -1,25 +1,17 @@
-## Docs map
+# AGENTS.md
 
-- Behavior/specification entry point: `docs/spec.md`
-- Input and sorting behavior: `docs/specs/input-and-sorting.md`
-- Viewer behavior: `docs/specs/viewer-behavior.md`
-- UI behavior: `docs/specs/ui-behavior.md`
-- Settings/history behavior: `docs/specs/settings-history.md`
-- Architecture and ownership: `docs/architecture.md`
-- Implementation plan: `docs/implementation-plan.md`
-- Decisions and deferred work: `docs/decisions.md`
+## Documentation
 
-## Commands
+See [docs/README.md](docs/README.md) for the documentation structure and conventions.
 
-- Build: `mise run build`
-- Format: `mise run format`
+Run `vibe-doc lint` after changing documents and resolve reported errors before finishing work.
 
-Run these from the repository root.
+## Code Quality
 
-## Rules
-
-- Read relevant docs before non-trivial changes.
-- Do not change documented behavior unless explicitly asked.
-- If docs and code conflict, report it before choosing a direction.
-- Update docs and tests when behavior changes.
-- Keep build-fix changes minimal; do not disable tests or remove targets to pass builds.
+* Long or complex functions must include detailed Japanese rustdoc comments.
+* Source files should stay around 1000 lines or less. Split files into smaller, cohesive modules before they grow beyond that.
+* Keep documentation files focused and reasonably sized. Split large documents by topic rather than allowing a single document to grow indefinitely.
+* Do not add `clone()`, `Arc`, `Mutex`, `Box`, or `dyn Trait` solely to silence ownership or borrowing errors.
+* Do not discard errors with `let _ =`, `.ok()`, or empty match arms unless intentionally documented.
+* Encode domain concepts with enums, structs, and newtypes rather than raw strings, integers, or boolean flags.
+* Use private visibility by default, `pub(crate)` for crate-internal APIs, and `pub` only for deliberate external APIs.
