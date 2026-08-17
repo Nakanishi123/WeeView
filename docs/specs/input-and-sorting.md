@@ -90,13 +90,17 @@ Expected order:
 2. `第二景.jpg`
 3. `第十景.jpg`
 
-Natural sorting applies to:
+Natural sorting applies by default to:
 
 - Folder image files.
 - Archive internal image entries.
 
 The sidebar file list defaults to natural filename sorting, and can also be sorted by filename, created date, or modified
 date in either ascending or descending order.
+
+When a folder book is opened, its image page order follows the sidebar sort setting for that folder. Changing the
+folder's sidebar sort order while that folder book is open refreshes the book page order and keeps the current image
+selected when the image still exists.
 
 For archives, sort by the full internal archive path.
 

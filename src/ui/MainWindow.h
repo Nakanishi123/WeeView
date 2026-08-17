@@ -37,12 +37,14 @@ class MainWindow final : public QMainWindow {
     void saveAppSettings();
     void applyAppSettings(const AppSettings &settings);
     void wireSidebar();
-    void openFolderBook(const QString &folderPath, int requestedPageIndex = 0);
+    void openFolderBook(const QString &folderPath, int requestedPageIndex = 0, bool restoreHistory = true);
     void openImageFile(const QString &filePath);
     void openArchiveBook(const QString &archivePath);
     void openAdjacentBook(int offset);
+    void reloadOpenFolderBook(const QString &folderPath);
     void displayBook(const ViewerState &viewerState);
     [[nodiscard]] int pageIndexForPath(const QString &filePath) const;
+    [[nodiscard]] SidebarSortSettings sortSettingsForFolder(const QString &folderPath) const;
     void handleCurrentPageChanged();
     void scheduleDeferredPageLoad();
     void executeDeferredPageLoad();

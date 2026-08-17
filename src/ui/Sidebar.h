@@ -51,6 +51,8 @@ class Sidebar final : public QWidget {
     void folderBookRequested(const QString &folderPath);
     void imageFileRequested(const QString &filePath);
     void archiveBookRequested(const QString &archivePath);
+    void folderReloadRequested(const QString &folderPath);
+    void fileListSortChanged(const QString &folderPath);
     void appSettingsChanged(const AppSettings &settings);
     void sidebarWidthChanged(int width);
     void historyEntryDeleteRequested(const QString &bookPath);
@@ -105,6 +107,7 @@ class Sidebar final : public QWidget {
     QPushButton *backButton_ = nullptr;
     QPushButton *forwardButton_ = nullptr;
     QPushButton *upButton_ = nullptr;
+    QPushButton *reloadButton_ = nullptr;
     QPushButton *historyButton_ = nullptr;
     QPushButton *settingsButton_ = nullptr;
     QPushButton *sortButton_ = nullptr;

@@ -21,6 +21,17 @@ enum class BookType {
     Archive,
 };
 
+enum class SidebarSortKey {
+    FileName,
+    CreatedAt,
+    ModifiedAt,
+};
+
+enum class SidebarSortOrder {
+    Ascending,
+    Descending,
+};
+
 enum class SpreadGroupDirection {
     Forward,
     Backward,
@@ -39,6 +50,11 @@ struct ViewerState {
     ViewMode viewMode = ViewMode::SinglePage;
     ReadingDirection readingDirection = ReadingDirection::RightToLeft;
     SpreadGroupDirection spreadGroupDirection = SpreadGroupDirection::Forward;
+};
+
+struct SidebarSortSettings {
+    SidebarSortKey key = SidebarSortKey::FileName;
+    SidebarSortOrder order = SidebarSortOrder::Ascending;
 };
 
 struct HistoryEntry {

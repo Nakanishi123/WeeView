@@ -74,12 +74,13 @@ qint64 estimatedDecodedBytes(const PageInfo &pageInfo) {
            decodedBytesPerPixelEstimate;
 }
 
-ImageLoadResult loadPageImageInBackground(int generation, BookType bookType, const QString &sourcePath, int pageIndex) {
+ImageLoadResult loadPageImageInBackground(int generation, BookType bookType, const QString &sourcePath,
+                                          SidebarSortSettings sortSettings, int pageIndex) {
     std::unique_ptr<Book> book;
     if (bookType == BookType::Archive) {
         book = std::make_unique<ArchiveBook>(sourcePath);
     } else {
-        book = std::make_unique<FolderBook>(sourcePath);
+        book = std::make_unique<FolderBook>(sourcePath, sortSettings);
     }
 
     return {
@@ -88,12 +89,12 @@ ImageLoadResult loadPageImageInBackground(int generation, BookType bookType, con
 }
 
 PageMetadataLoadResult loadPageMetadataInBackground(int generation, BookType bookType, const QString &sourcePath,
-                                                    int pageIndex) {
+                                                    SidebarSortSettings sortSettings, int pageIndex) {
     std::unique_ptr<Book> book;
     if (bookType == BookType::Archive) {
         book = std::make_unique<ArchiveBook>(sourcePath);
     } else {
-        book = std::make_unique<FolderBook>(sourcePath);
+        book = std::make_unique<FolderBook>(sourcePath, sortSettings);
     }
 
     return {
@@ -135,6 +136,17 @@ void trimHistoryEntries(QVector<HistoryEntry> &entries) {
     }
 
     entries.resize(writeIndex);
+}
+
+int bookPageIndexForPath(const Book &book, const QString &filePath) {
+    const auto normalizedFilePath = QFileInfo(filePath).absoluteFilePath();
+    for (int index = 0; index < book.pageCount(); ++index) {
+        const auto page = book.pageInfo(index);
+        if (QFileInfo(page.displayPath).absoluteFilePath() == normalizedFilePath) {
+            return index;
+        }
+    }
+    return 0;
 }
 
 } // namespace
@@ -281,6 +293,8 @@ void MainWindow::wireSidebar() {
             [this](const QString &folderPath) { openFolderBook(folderPath); });
     connect(sidebar, &Sidebar::imageFileRequested, this, &MainWindow::openImageFile);
     connect(sidebar, &Sidebar::archiveBookRequested, this, &MainWindow::openArchiveBook);
+    connect(sidebar, &Sidebar::folderReloadRequested, this, &MainWindow::reloadOpenFolderBook);
+    connect(sidebar, &Sidebar::fileListSortChanged, this, &MainWindow::reloadOpenFolderBook);
     connect(sidebar, &Sidebar::sidebarWidthChanged, this, [this](int width) { appSettings_.sidebarWidth = width; });
     connect(sidebar, &Sidebar::historyEntryDeleteRequested, this, &MainWindow::deleteHistoryEntry);
     connect(sidebar, &Sidebar::currentFolderHistoryDeleteRequested, this, &MainWindow::deleteCurrentFolderHistory);
@@ -308,14 +322,14 @@ void MainWindow::wireSidebar() {
     });
 }
 
-void MainWindow::openFolderBook(const QString &folderPath, int requestedPageIndex) {
+void MainWindow::openFolderBook(const QString &folderPath, int requestedPageIndex, bool restoreHistory) {
     cancelDeferredPageLoad();
     cancelImagePreload();
     cancelImageLoads();
     cancelPageMetadataLoad();
     saveCurrentHistory();
 
-    auto book = std::make_unique<FolderBook>(folderPath);
+    auto book = std::make_unique<FolderBook>(folderPath, sortSettingsForFolder(folderPath));
     currentBook_ = std::move(book);
     suppressedHistoryBookPath_.clear();
 
@@ -326,11 +340,13 @@ void MainWindow::openFolderBook(const QString &folderPath, int requestedPageInde
     viewerState.currentDisplayLastPageIndex = requestedPageIndex;
     viewerState.viewMode = appSettings_.defaultViewMode;
     viewerState.readingDirection = appSettings_.defaultReadingDirection;
-    if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
-        viewerState = {
-            entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,
-            entry->readingDirection, entry->spreadGroupDirection,
-        };
+    if (restoreHistory) {
+        if (const auto *entry = currentHistoryEntry(); entry != nullptr) {
+            viewerState = {
+                entry->lastPageIndex,    entry->lastDisplayLastPageIndex, entry->viewMode,
+                entry->readingDirection, entry->spreadGroupDirection,
+            };
+        }
     }
     displayBook(viewerState);
 }
@@ -343,7 +359,8 @@ void MainWindow::openImageFile(const QString &filePath) {
     saveCurrentHistory();
 
     const QFileInfo fileInfo(filePath);
-    auto book = std::make_unique<FolderBook>(fileInfo.dir().absolutePath());
+    auto book = std::make_unique<FolderBook>(fileInfo.dir().absolutePath(),
+                                             sortSettingsForFolder(fileInfo.dir().absolutePath()));
     currentBook_ = std::move(book);
     suppressedHistoryBookPath_.clear();
 
@@ -480,6 +497,28 @@ void MainWindow::openAdjacentBook(int offset) {
     }
 }
 
+void MainWindow::reloadOpenFolderBook(const QString &folderPath) {
+    if (!currentBook_ || currentBook_->type() != BookType::Folder || folderPath.isEmpty()) {
+        return;
+    }
+
+    const auto normalizedFolderPath = QFileInfo(folderPath).absoluteFilePath();
+    if (QFileInfo(currentBook_->sourcePath()).absoluteFilePath() != normalizedFolderPath) {
+        return;
+    }
+
+    const auto currentViewerState = overlayContainer_->viewer()->viewerState();
+    const auto oldPageIndex =
+        std::clamp(currentViewerState.currentPageIndex, 0, std::max(0, currentBook_->pageCount() - 1));
+    const auto currentPagePath =
+        currentBook_->pageCount() > 0 ? currentBook_->pageInfo(oldPageIndex).displayPath : QString();
+
+    auto refreshedBook = FolderBook(normalizedFolderPath, sortSettingsForFolder(normalizedFolderPath));
+    const auto requestedPageIndex =
+        currentPagePath.isEmpty() ? oldPageIndex : bookPageIndexForPath(refreshedBook, currentPagePath);
+    openFolderBook(normalizedFolderPath, requestedPageIndex, false);
+}
+
 void MainWindow::displayBook(const ViewerState &viewerState) {
     auto *viewer = overlayContainer_->viewer();
     auto *header = overlayContainer_->headerBar();
@@ -513,14 +552,14 @@ int MainWindow::pageIndexForPath(const QString &filePath) const {
         return 0;
     }
 
-    const auto normalizedFilePath = QFileInfo(filePath).absoluteFilePath();
-    for (int index = 0; index < currentBook_->pageCount(); ++index) {
-        const auto page = currentBook_->pageInfo(index);
-        if (QFileInfo(page.displayPath).absoluteFilePath() == normalizedFilePath) {
-            return index;
-        }
+    return bookPageIndexForPath(*currentBook_, filePath);
+}
+
+SidebarSortSettings MainWindow::sortSettingsForFolder(const QString &folderPath) const {
+    if (folderPath.isEmpty()) {
+        return {};
     }
-    return 0;
+    return appSettings_.sidebarFolderSorts.value(QFileInfo(folderPath).absoluteFilePath(), SidebarSortSettings{});
 }
 
 void MainWindow::handleCurrentPageChanged() {
@@ -797,6 +836,7 @@ void MainWindow::requestPageMetadataLoad(int pageIndex) {
     const auto generation = pageMetadataGeneration_;
     const auto bookType = currentBook_->type();
     const auto sourcePath = currentBook_->sourcePath();
+    const auto sortSettings = bookType == BookType::Folder ? sortSettingsForFolder(sourcePath) : SidebarSortSettings{};
     connect(watcher, &QFutureWatcher<PageMetadataLoadResult>::finished, this, [this, watcher] {
         const auto result = watcher->result();
         watcher->deleteLater();
@@ -832,7 +872,8 @@ void MainWindow::requestPageMetadataLoad(int pageIndex) {
             pageMetadataTimer_->start(0);
         }
     });
-    watcher->setFuture(QtConcurrent::run(loadPageMetadataInBackground, generation, bookType, sourcePath, pageIndex));
+    watcher->setFuture(
+        QtConcurrent::run(loadPageMetadataInBackground, generation, bookType, sourcePath, sortSettings, pageIndex));
 }
 
 void MainWindow::schedulePageMetadataLoad() {
@@ -910,6 +951,7 @@ void MainWindow::requestPageImageLoad(int pageIndex) {
     const auto generation = imageLoadGeneration_;
     const auto bookType = currentBook_->type();
     const auto sourcePath = currentBook_->sourcePath();
+    const auto sortSettings = bookType == BookType::Folder ? sortSettingsForFolder(sourcePath) : SidebarSortSettings{};
     connect(watcher, &QFutureWatcher<ImageLoadResult>::finished, this, [this, watcher] {
         const auto result = watcher->result();
         watcher->deleteLater();
@@ -942,7 +984,8 @@ void MainWindow::requestPageImageLoad(int pageIndex) {
             imagePreloadTimer_->start(0);
         }
     });
-    watcher->setFuture(QtConcurrent::run(loadPageImageInBackground, generation, bookType, sourcePath, pageIndex));
+    watcher->setFuture(
+        QtConcurrent::run(loadPageImageInBackground, generation, bookType, sourcePath, sortSettings, pageIndex));
 }
 
 void MainWindow::loadHistory() {

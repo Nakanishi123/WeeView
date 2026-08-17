@@ -55,6 +55,10 @@
         <translation>上へ</translation>
     </message>
     <message>
+        <source>Reload</source>
+        <translation>再読み込み</translation>
+    </message>
+    <message>
         <source>History</source>
         <translation>履歴</translation>
     </message>

@@ -47,6 +47,7 @@ The sidebar must include:
 - Back button.
 - Forward button.
 - Up directory button.
+- Reload button.
 - History button.
 - Settings button.
 - Sort button.
@@ -107,6 +108,9 @@ are folder books and supported archive books. Supported image files are pages wi
 book candidates. Candidate order follows the sidebar file list order for that parent folder, with directories before
 files and the configured sidebar sort key/order applied within each group. Navigation at the first or last candidate
 does not wrap.
+
+Reload refreshes the current sidebar folder contents. If the currently open book is that folder, reload also refreshes
+the folder book's image pages and keeps the current image selected when the image still exists.
 
 ### Sidebar navigation
 

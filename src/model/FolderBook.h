@@ -9,7 +9,7 @@ namespace weeview {
 
 class FolderBook final : public Book {
   public:
-    explicit FolderBook(QString folderPath);
+    explicit FolderBook(QString folderPath, SidebarSortSettings sortSettings = {});
 
     [[nodiscard]] BookType type() const override;
     [[nodiscard]] QString displayName() const override;
@@ -30,6 +30,7 @@ class FolderBook final : public Book {
 
     QString folderPath_;
     QString displayName_;
+    SidebarSortSettings sortSettings_;
     QVector<Page> pages_;
 };
 

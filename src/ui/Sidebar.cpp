@@ -382,6 +382,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     backButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_back.svg"), tr("Back"), this);
     forwardButton_ = createNavigationButton(QStringLiteral(":/assets/wrap_forward.svg"), tr("Forward"), this);
     upButton_ = createNavigationButton(QStringLiteral(":/assets/arrow_up.svg"), tr("Up"), this);
+    reloadButton_ = createNavigationButton(QStringLiteral(":/assets/reload.svg"), tr("Reload"), this);
     historyButton_ = createNavigationButton(QStringLiteral(":/assets/undo_history.svg"), tr("History"), this);
     settingsButton_ = createNavigationButton(QStringLiteral(":/assets/settings.svg"), tr("Settings"), this);
     sortButton_ = new QPushButton(this);
@@ -416,19 +417,13 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     contentStack_->addWidget(settingsScrollArea);
     populateSettingsPanel();
 
-    const std::array<QWidget *, 14> cursorUpdateWidgets = {pathLabel_,
-                                                           homeButton_,
-                                                           backButton_,
-                                                           forwardButton_,
-                                                           upButton_,
-                                                           historyButton_,
-                                                           settingsButton_,
-                                                           sortButton_,
-                                                           contentStack_,
-                                                           fileList_,
-                                                           fileList_->viewport(),
-                                                           settingsScrollArea,
-                                                           settingsScrollArea->viewport(),
+    const std::array<QWidget *, 15> cursorUpdateWidgets = {pathLabel_,         homeButton_,
+                                                           backButton_,        forwardButton_,
+                                                           upButton_,          reloadButton_,
+                                                           historyButton_,     settingsButton_,
+                                                           sortButton_,        contentStack_,
+                                                           fileList_,          fileList_->viewport(),
+                                                           settingsScrollArea, settingsScrollArea->viewport(),
                                                            settingsPanel_};
     for (auto *widget : cursorUpdateWidgets) {
         widget->installEventFilter(this);
@@ -444,6 +439,7 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     buttonLayout->addWidget(backButton_);
     buttonLayout->addWidget(forwardButton_);
     buttonLayout->addWidget(upButton_);
+    buttonLayout->addWidget(reloadButton_);
     buttonLayout->addWidget(historyButton_);
     buttonLayout->addWidget(settingsButton_);
 
@@ -459,6 +455,13 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent) {
     connect(backButton_, &QPushButton::clicked, this, &Sidebar::navigateBack);
     connect(forwardButton_, &QPushButton::clicked, this, &Sidebar::navigateForward);
     connect(upButton_, &QPushButton::clicked, this, &Sidebar::navigateUp);
+    connect(reloadButton_, &QPushButton::clicked, this, [this] {
+        if (currentFolder_.isEmpty()) {
+            return;
+        }
+        populateFileList();
+        emit folderReloadRequested(currentFolder_);
+    });
     connect(historyButton_, &QPushButton::clicked, this, &Sidebar::showHistory);
     connect(settingsButton_, &QPushButton::clicked, this, &Sidebar::showSettings);
     connect(sortButton_, &QPushButton::clicked, this, &Sidebar::showSortMenu);
@@ -737,6 +740,7 @@ void Sidebar::showSortMenu() {
             updateSortButtonText();
             saveSortSettingsForCurrentFolder();
             populateFileList();
+            emit fileListSortChanged(currentFolder_);
         });
     };
 
@@ -973,6 +977,7 @@ void Sidebar::updateNavigationButtons() {
     backButton_->setEnabled(!showingAlternateView && !backStack_.isEmpty());
     forwardButton_->setEnabled(!showingAlternateView && !forwardStack_.isEmpty());
     upButton_->setEnabled(!showingAlternateView && QFileInfo(currentFolder_).dir().absolutePath() != currentFolder_);
+    reloadButton_->setEnabled(!showingAlternateView && !currentFolder_.isEmpty());
 }
 
 void Sidebar::handleItemClicked(QListWidgetItem *item) {
